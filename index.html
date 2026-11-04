@@ -399,7 +399,7 @@ function viewExam(){
   const srcF=S.files.find(f=>f.id===e.fileId);
   const auto=`<section class="panel"><header><h3>자동 입력</h3></header>
   <p class="hint">${srcF?`시험지 파일: ${esc(srcF.name)}${srcF.assetId?` · <a href="/_blob/${esc(srcF.assetId)}" target="_blank" rel="noopener">원본 열기</a>`:''}`:'이 시험은 파일 없이 만들었습니다. [자료 업로드]에서 시험지를 올리면 문항이 자동으로 채워집니다.'} 자동으로 채운 값은 초안이므로 확인 후 고쳐 주세요.</p>
-  <div class="st"><button class="btn sm pri" data-act="match-exam">올린 자료 기준으로 출처·유사도 다시 분석</button><button class="btn sm" data-act="draft-sol">주요문항 풀이 초안 만들기</button><button class="btn sm" data-act="crop-refs">자료 문제 이미지 만들기</button>${srcF?'<button class="btn sm pri" data-act="rescore-exam">배점 다시 읽기</button><button class="btn sm" data-act="crop-exam">문항 이미지 자동 자르기</button>':''}${srcF&&srcF.chars?'<button class="btn sm danger" data-act="reanalyze-exam">시험지 파일에서 문항 다시 읽기</button>':''}</div>
+  <div class="st"><button class="btn sm pri" data-act="match-exam">올린 자료 기준으로 출처·유사도 다시 분석</button><button class="btn sm" data-act="draft-sol">주요문항 분석 초안 만들기</button><button class="btn sm" data-act="crop-refs">자료 문제 이미지 만들기</button>${srcF?'<button class="btn sm pri" data-act="rescore-exam">배점 다시 읽기</button><button class="btn sm" data-act="crop-exam">문항 이미지 자동 자르기</button>':''}${srcF&&srcF.chars?'<button class="btn sm danger" data-act="reanalyze-exam">시험지 파일에서 문항 다시 읽기</button>':''}</div>
   ${ui.log.length||busy?jobPanel():''}</section>`;
   return datalists()+bar+head+auto+qt;
 }
@@ -443,7 +443,7 @@ function viewReport(){
   const kq=a.keyQ.map(q=>`<article class="qcard"><header><span class="no">${q.no}번</span><span class="pill">${esc(q.type==='객관'?'객관식':'서답형')}</span><span class="pill ${isHigh(q)?'hot':''}">${esc(q.diff)}</span><span class="pill">${fmt(q.score,1)}점</span>${q.correctRate!=null?`<span class="pill ${q.correctRate<=40?'hot':'good'}">정답률 ${q.correctRate}%</span>`:''}${q.discrim?'<span class="pill hot">변별 문항</span>':''}<span class="hint">${esc(q.unit)} · ${esc(q.source)}${q.ref?' · '+esc(q.ref):''}</span></header>
     <div class="qbody"><div>${qvisual(q)}</div><div style="display:flex;flex-direction:column;gap:8px;min-width:0">
     ${q.topic?`<div><b>출제 포인트</b> ${esc(q.topic)}</div>`:''}${q.simSchool!=null?`<div class="hint">학교 자료 유사도 ${pc(q.simSchool)}${q.ref?' · 참고 '+esc(q.ref):''}</div>`:''}
-    ${ui.editSol===q.id?`<textarea id="solbox" rows="10">${esc(solClean(q.solution))}</textarea><div class="st noprint"><button class="btn sm pri" data-act="sol-save" data-id="${q.id}">저장</button><button class="btn sm" data-act="sol-cancel">취소</button><span class="hint">수식은 $ 사이에 LaTeX로 적습니다. 예: $x^2+1$, $\\frac{a}{b}$, $\\sqrt{3}$, $\\lim_{x\\to 0}$</span></div>`:`${q.solution?`<pre>${solHtml(q.solution)}</pre>`:'<div class="hint">풀이가 아직 없습니다. 아래 [풀이 수정]을 눌러 직접 적거나, [시험 입력]에서 풀이 초안을 만드세요.</div>'}<div class="st noprint"><button class="btn sm" data-act="sol-edit" data-id="${q.id}">풀이 수정</button></div>`}</div></div></article>`).join('');
+    ${ui.editSol===q.id?`<div class="sol-ed"><b class="shl">문항 분석</b><textarea id="anbox" rows="6" placeholder="왜 변별력 있는 문항으로 골랐는지, 학교 프린트와 얼마나 비슷했는지, 이 문제가 갖는 의미 등">${esc(q.analysis||'')}</textarea><b class="shl">풀이 (학원 풀이와 정석 풀이 비교, 수업에서 한 간략한 풀이 등)</b><div class="solimgs">${(q.solImgs||[]).map(sid=>`<div class="solimg"><img data-qimg="${sid}" data-solimg="1" alt="풀이 이미지"><button class="btn sm danger noprint" data-act="sol-img-del" data-id="${q.id}" data-path="${sid}">이미지 삭제</button></div>`).join('')}</div><div class="st noprint"><label class="btn sm pri">손글씨 풀이 이미지 올리기<input type="file" accept="image/*" multiple hidden data-solfile="${q.id}"></label><span class="hint pastebox" tabindex="0" data-pastesol="${q.id}">여기를 클릭한 뒤 Ctrl+V로 캡처 이미지를 붙여넣을 수도 있습니다</span></div><textarea id="solbox" rows="4" placeholder="글로 적을 풀이가 있으면 적으세요(선택). 수식은 $ 사이에 LaTeX로 적습니다.">${esc(solClean(q.solution))}</textarea><div class="st noprint"><button class="btn sm pri" data-act="sol-save" data-id="${q.id}">저장</button><button class="btn sm" data-act="sol-cancel">닫기</button><span class="hint">이미지는 올리는 즉시 저장됩니다. 글은 [저장]을 눌러야 저장됩니다.</span></div></div>`:`${q.analysis?`<div class="shl">문항 분석</div><pre>${solHtml(q.analysis)}</pre>`:''}${(q.solImgs&&q.solImgs.length)||q.solution?`<div class="shl">풀이</div>${(q.solImgs||[]).map(sid=>`<div class="solimg"><img data-qimg="${sid}" data-solimg="1" alt="풀이 이미지"></div>`).join('')}${q.solution?`<pre>${solHtml(q.solution)}</pre>`:''}`:''}${!q.analysis&&!q.solution&&!(q.solImgs&&q.solImgs.length)?'<div class="hint">문항 분석과 풀이가 아직 없습니다. 아래 [풀이·분석 수정]에서 직접 적고 손글씨 풀이 이미지를 올리세요.</div>':''}<div class="st noprint"><button class="btn sm" data-act="sol-edit" data-id="${q.id}">풀이·분석 수정</button></div>`}</div></div></article>`).join('');
   const kP=`<section class="panel"><header><h3>주요문항 설명 및 풀이</h3>${hbtn('key')}</header>${kq||'<div class="empty">주요·변별 표시를 한 문항이나 난이도 최상 문항이 여기에 나타납니다.</div>'}</section>`;
   const cq=[...a.qs].filter(q=>q.cmp&&q.simBest!=null&&(q.refImg||IMGS['ref_'+q.id])).sort((x,y)=>x.no-y.no);
   const cmpCards=cq.map(q=>{const v=q.simBest;return`<article class="qcard pair"><header><span class="no">${q.no}번</span><span class="pill hot">${v>=T.t1?'거의 동일':v>=T.t2?'변형':'유사'} ${v}%</span><span class="hint">${esc(q.ref||'')}${q.refPageShown?' · '+q.refPageShown+'쪽':''}</span><button class="btn sm noprint" data-act="cmp-remove" data-id="${q.id}">빼기</button></header><div class="qbody"><div><div class="hint" style="margin-bottom:6px">실제 시험</div>${qvisual(q)}</div><div><div class="hint" style="margin-bottom:6px">자료 문제</div><img class="qimg" data-qimg="ref_${q.id}" alt="${q.no}번과 비슷한 자료 문제"></div></div></article>`}).join('');
@@ -540,7 +540,8 @@ document.addEventListener('click',ev=>{
   else if(act==='show-item'){S.cover.hide=(S.cover.hide||[]).filter(x=>x!==id);save();render()}
   else if(act==='sol-edit'){ui.editSol=id;render()}
   else if(act==='sol-cancel'){ui.editSol=null;render()}
-  else if(act==='sol-save'){const q=S.exams.flatMap(x=>x.questions).find(x=>x.id===id),bx=document.getElementById('solbox');if(q&&bx){q.solution=bx.value.trim();ui.editSol=null;save();render()}}
+  else if(act==='sol-save'){const q=solQ(id);if(q){grabSol(q);q.solution=(q.solution||'').trim();q.analysis=(q.analysis||'').trim();ui.editSol=null;save();render()}}
+  else if(act==='sol-img-del'){const q=solQ(id);if(q){grabSol(q);q.solImgs=(q.solImgs||[]).filter(x=>x!==path);delete IMGS[path];if(db)try{db.doc('qimg/'+path).delete()}catch(x){}save();render()}}
   else if(act==='open-pair')showPop(id,true);
   else if(act==='cmp-close')hidePop();
   else if(act==='cmp-toggle')togglePair(id);
@@ -930,7 +931,7 @@ const norm=s=>String(s).toLowerCase().replace(/[\s.,;:'"“”‘’·•\-–�
 const grams=(s,n=3)=>{const g=new Set();for(let i=0;i+n<=s.length;i++)g.add(s.slice(i,i+n));return g};
 function chunksOf(f,t){
   if(CH[f.id])return CH[f.id];const o=[],mk=[...t.matchAll(/\[(\d+)쪽\]|\[페이지 (\d+)[^\]]*\]/g)].map(m=>[m.index,+(m[1]||m[2])]),pgAt=p=>{let r=0;for(const [i,n] of mk){if(i<=p)r=n;else break}return r};
-  for(let i=0;i<t.length;i+=250){const raw=t.slice(i,i+500);if(raw.trim().length>20)o.push({g:grams(norm(raw),2),ex:raw.replace(/\s+/g,' ').slice(0,400),pg:pgAt(i),pg2:pgAt(Math.min(t.length-1,i+499))})}
+  for(let i=0;i<t.length;i+=250){const raw=t.slice(i,i+500);if(raw.trim().length>20)o.push({g:grams(norm(raw),2),ex:raw.replace(/\s+/g,' ').slice(0,400),pg:mk.length?pgAt(i):1,pg2:mk.length?pgAt(Math.min(t.length-1,i+499)):1,all:!mk.length})}
   return CH[f.id]=o;
 }
 const isEasy=q=>q.diff==='하'||q.diff==='중'||(q.score!=null&&Number(q.score)<=4.5);
@@ -968,7 +969,7 @@ ${body}`);
     (Array.isArray(r)?r:[]).forEach(o=>{
       const q=bs[i][Number(o.k)-1];if(!q)return;
       if(SOURCES.includes(o.source))q.source=o.source;
-      q.ref=String(o.ref||'');q.simBest=clamp(o.simBest);q.source=srcOf(q,e.schoolId);{const cd=(cand.get(q.id)||[])[Number(o.c)-1],ok=!!(cd&&q.ref&&cd.pg&&cd.f.kind!=='학원 자료');if(!q.refManual&&(q.refFile!==(ok?cd.f.id:undefined)||q.refPage!==(ok?cd.pg:undefined))){q.refImg=false;delete IMGS['ref_'+q.id]}q.refFile=ok?cd.f.id:undefined;q.refPage=ok?cd.pg:undefined;q.refPage2=ok?cd.pg2:undefined}q.simNote=String(o.note||'').slice(0,80);
+      q.ref=String(o.ref||'');q.simBest=clamp(o.simBest);q.source=srcOf(q,e.schoolId);{const cd=(cand.get(q.id)||[])[Number(o.c)-1],ok=!!(cd&&q.ref&&cd.pg&&cd.f.kind!=='학원 자료');if(!q.refManual&&(q.refFile!==(ok?cd.f.id:undefined)||q.refPage!==(ok?cd.pg:undefined))){q.refImg=false;delete IMGS['ref_'+q.id]}q.refFile=ok?cd.f.id:undefined;q.refPage=ok?cd.pg:undefined;q.refPage2=ok?cd.pg2:undefined;q.refAll=ok&&cd.all?true:undefined}q.simNote=String(o.note||'').slice(0,80);
       q.simSchool=SCHOOL_K.some(k=>kinds.has(k))?clamp(o.simSchool)??0:null;
       q.simAcademy=kinds.has('학원 자료')?clamp(o.simAcademy)??0:null;
     });
@@ -978,17 +979,15 @@ ${body}`);
   try{await cropRefs(e)}catch(x){log('  자료 문제 이미지는 만들지 못했습니다: '+errMsg(x))}
 }
 async function draftSolutions(e){
-  const t=e.questions.filter(q=>q.stem&&(q.diff==='최상'||q.key||q.discrim)&&!q.solution).slice(0,8);
-  if(!t.length){log('▷ 풀이 초안을 만들 문항이 없습니다. 난이도 최상이거나 주요·변별로 표시한 문항에 본문이 있어야 합니다.');return}
-  log(`▷ 주요문항 ${t.length}개의 풀이 초안을 만듭니다.`);
-  const r=await ask(`한국 중·고등 수학 교사를 돕는 풀이 초안 작성입니다. 아래 문항마다 JSON 배열만 출력하세요. 원소: {"k":문항 번호,"solution":"출제 의도 한 줄, 풀이 단계(①②③…), 학생이 틀리기 쉬운 지점 한 줄. 600자 이내"}
-풀이에는 2022 개정 교육과정에 포함된 개념·정리·공식·풀이법만 사용하세요. 2022 개정 교육과정에 없는 내용(예: 로피탈 정리, 이전 교육과정에서 삭제·이동된 내용, 대학 과정 개념)은 쓰지 말고, 교과서 범위 안의 방법으로만 푸세요. 교과서 범위 안의 방법으로 풀 수 없거나 확신이 없으면 그 사실을 적으세요.
-본문이 불완전해서 확신할 수 없으면 그 사실을 적고 확실한 부분만 쓰세요.
-풀이에 들어가는 모든 수식은 2022 개정 고등학교 교과서의 표기를 따르는 LaTeX로 쓰고, 한 줄 수식은 $...$ 사이에 넣으세요(예: $x^2-3x+2=0$, $\\frac{a}{b}$, $\\sqrt{3}$, $\\lim_{x\\to 0}$, $\\log_2 8$, $\\sin\\theta$, $\\sum_{k=1}^{n}k$). JSON 문자열 안이므로 역슬래시는 반드시 두 번(\\\\)으로 쓰세요. 숫자·문자 하나짜리 수식도 $ 안에 넣으세요.
+  const t=e.questions.filter(q=>(q.diff==='최상'||q.key||q.discrim)&&!q.analysis).slice(0,10);
+  if(!t.length){log('▷ 분석 초안을 만들 문항이 없습니다. 난이도 최상이거나 주요·변별로 표시한 문항(분석이 비어 있는 것)이 있어야 합니다.');return}
+  log(`▷ 주요문항 ${t.length}개의 문항 분석 초안을 만듭니다.`);
+  const r=await ask(`한국 중·고등 수학 학원 교사가 분석지에 넣을 '주요문항 분석' 초안 작성입니다. 아래 문항마다 JSON 배열만 출력하세요. 원소: {"k":번호,"analysis":"3~5문장"}
+analysis에는 다음을 사실에 근거해 쓰세요: ① 이 문항을 변별력 있는 주요 문항으로 본 이유(정답률·난이도·변별 표시 근거), ② 학교 프린트·부교재 등 자료와 얼마나 유사했는지(아래 유사도와 참고 자료 값 그대로 인용, 없으면 '확인된 유사 자료 없음'), ③ 이 문제가 단원 학습에서 갖는 의미와 학생이 놓치기 쉬운 지점. 주어진 수치에 없는 내용은 지어내지 마세요. 문항 풀이는 쓰지 마세요(풀이는 교사가 손글씨로 올립니다). 수식이 필요하면 $...$ 사이에 LaTeX로 쓰고 JSON 안에서 역슬래시는 두 번 쓰세요.
 
-`+t.map((q,k)=>`### k=${k+1} (${q.unit||'단원 미상'}, 난이도 ${q.diff})\n${q.stem}`).join('\n\n'));
-  (Array.isArray(r)?r:[]).forEach(o=>{const q=t[Number(o.k)-1];if(q&&o.solution){q.solution=String(o.solution);q.key=true}});
-  log('✓ 풀이 초안을 넣었습니다. 시험 입력의 풀이 칸에서 확인하고 고치세요.');
+`+t.map((q,k)=>`### k=${k+1} ${q.no}번 (${q.unit||'단원 미상'}, 난이도 ${q.diff}, 배점 ${q.score??'?'}점, 정답률 ${q.correctRate??'미입력'}%, 변별문항 ${q.discrim?'예':'아니오'}, 출처 ${q.source||'미상'}, 학교 자료 유사도 ${q.simSchool??'미입력'}%, 참고 자료 ${q.ref||'없음'}, 출제 포인트 ${q.topic||'미입력'})${q.stem?'\n'+q.stem:''}`).join('\n\n'));
+  (Array.isArray(r)?r:[]).forEach(o=>{const q=t[Number(o.k)-1];if(q&&o.analysis){q.analysis=String(o.analysis);q.key=true}});
+  log('✓ 문항 분석 초안을 넣었습니다. 분석 리포트의 [풀이·분석 수정]에서 고칠 수 있고, 풀이는 손글씨 이미지로 올리세요.');
 }
 const SCORE_RE=/\[\s*(\d+(?:\.\d+)?)\s*점\s*\]/g;
 async function rescoreExam(e){
@@ -1103,7 +1102,7 @@ async function loadQImg(id){
 function hydrateImgs(){
   document.querySelectorAll('img[data-qimg]:not([src])').forEach(async el=>{
     const u=await loadQImg(el.dataset.qimg);
-    if(u)document.querySelectorAll(`img[data-qimg="${el.dataset.qimg}"]`).forEach(x=>{x.onload=()=>{x.style.width=Math.round(x.naturalWidth*QSCALE*imgScale(x.dataset.qimg))+'px'};x.src=u});
+    if(u)document.querySelectorAll(`img[data-qimg="${el.dataset.qimg}"]`).forEach(x=>{x.onload=()=>{if(x.dataset.solimg){x.style.maxWidth='100%';return}x.style.width=Math.round(x.naturalWidth*QSCALE*imgScale(x.dataset.qimg))+'px'};x.src=u});
     else el.replaceWith(Object.assign(document.createElement('div'),{className:'hint',textContent:'문항 이미지를 불러오지 못했습니다.'}));
   });
 }
@@ -1215,12 +1214,21 @@ async function renderOne(pdf,i){
   return new Promise(r=>c.toBlob(r,'image/jpeg',0.88));
 }
 /* 문항 하나에 대해, 자료의 해당 쪽에서 비슷한 문제를 찾아 이미지로 자릅니다 */
-async function makeRefImg(q){
+/* 이름만 알고 파일·쪽 연결이 빠진 문항(쪽 표시가 없는 자료 등)을 자료 파일에 이어 줍니다. 쪽수를 모르면 자료의 앞쪽 몇 쪽을 모두 보고 찾습니다. */
+function linkRef(q,e){
+  if(q.refFile||!q.ref)return;
+  const f=S.files.find(x=>x.name===q.ref&&x.kind!=='시험지'&&x.assetId&&(!x.schoolId||!e||x.schoolId===e.schoolId));
+  if(f){q.refFile=f.id;q.refPage=1;q.refAll=true}
+}
+async function makeRefImg(q,wide){
   const f=S.files.find(x=>x.id===q.refFile);
   if(!f||!q.refPage)return false;
   if(!f.assetId)throw new Error(`${f.name}: 원본 PDF가 보관되어 있지 않습니다. [자료 업로드]에서 다시 올려 주세요.`);
   const pdf=await getMatPdf(f),np=pdf.numPages;
-  const pgs=[...new Set([q.refPage,q.refPage2&&q.refPage2!==q.refPage?q.refPage2:0].filter(p=>p>=1&&p<=np))];
+  if(q.refAll&&np>8)throw new Error(`${f.name}: 쪽 표시가 없고 ${np}쪽이라 자료 쪽을 알 수 없습니다. [시험 입력]에서 출처·유사도를 다시 분석해 주세요.`);
+  let base=q.refAll?Array.from({length:np},(_,i)=>i+1):[q.refPage,q.refPage2&&q.refPage2!==q.refPage?q.refPage2:0];
+  if(wide&&!q.refAll)base=base.flatMap(p=>p?[p-1,p,p+1]:[]);
+  const pgs=[...new Set(base.filter(p=>p>=1&&p<=np))].sort((a,b)=>a-b);
   if(!pgs.length)return false;
   const blobs=[];for(const p of pgs)blobs.push(await renderOne(pdf,p));
   const r=await ask(`첨부 이미지는 자료 '${f.name}'의 ${pgs.join('·')}쪽이며 순서대로 page 1~${blobs.length}입니다.
@@ -1230,15 +1238,16 @@ async function makeRefImg(q){
 
 시험 문항: ${(q.stem||q.topic||'').replace(/\s+/g,' ').slice(0,400)}`,blobs);
   const pg=Number(r&&r.page);
-  if(!pg||!Array.isArray(r.box)||r.box.length!==4||!blobs[pg-1])return false;
-  const url=await cropBox(blobs[pg-1],r.box);if(!url)return false;
+  if(!pg||!Array.isArray(r.box)||r.box.length!==4||!blobs[pg-1])return (!wide&&!q.refAll)?makeRefImg(q,true):false;
+  const url=await cropBox(blobs[pg-1],r.box);if(!url)return (!wide&&!q.refAll)?makeRefImg(q,true):false;
   IMGS['ref_'+q.id]=url;q.refImg=true;q.refPageShown=pgs[pg-1];
   if(db){try{await db.doc('qimg/ref_'+q.id).set({d:url})}catch(x){toast('자료 문제 이미지를 서버에 저장하지 못했습니다. 이 화면에서만 보입니다.')}}
   return true;
 }
 async function cropRefs(e){
   if(!ui.api.images){log('▷ 이 화면에서는 이미지를 보낼 수 없어 자료 문제 이미지를 건너뜁니다.');return}
-  const T=thr(),todo=e.questions.filter(q=>q.refFile&&q.refPage&&q.stem&&!q.refImg&&q.simBest!=null&&q.simBest>=T.t2);
+  const T=thr();e.questions.forEach(q=>{if(!q.refImg&&q.simBest!=null&&q.simBest>=T.t2)linkRef(q,e)});
+  const todo=e.questions.filter(q=>q.refFile&&q.refPage&&q.stem&&!q.refImg&&q.simBest!=null&&q.simBest>=T.t2);
   if(!todo.length){log(`▷ 자료 문제 이미지를 만들 문항이 없습니다. (유사도 ${T.t2}% 이상이면서 자료의 쪽수를 아는 문항만 만듭니다)`);return}
   log(`▷ 자료 속 비슷한 문제 ${todo.length}개를 이미지로 자릅니다.`);
   let ok=0;const warned=new Set();
@@ -1260,10 +1269,10 @@ const popFind=qid=>{const e=S.exams.find(x=>x.id===ui.rep),q=e&&e.questions.find
 function pairBody(q,pinned){
   const T=thr(),has=q.refImg||IMGS['ref_'+q.id],v=q.simBest;
   const head=`<div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-bottom:10px"><b style="font-size:15px">${q.no}번</b><span class="hint">${esc(q.unit||'')}</span>${v!=null?`<span class="pill hot">${v>=T.t1?'거의 동일':v>=T.t2?'변형':'신유형'} ${v}%</span>`:''}${q.ref?`<span class="hint">${esc(q.ref)}${q.refPageShown?' · '+q.refPageShown+'쪽':''}</span>`:''}${q.cmp?'<span class="pill good">비교란에 포함</span>':''}</div>`;
-  const right=has?`<img class="qimg" data-qimg="ref_${q.id}" alt="자료 문제">`:`<div class="hint">${q.refFile?'자료 문제 이미지가 아직 없습니다.':'비슷한 자료가 없습니다.'}</div>`;
+  const right=has?`<img class="qimg" data-qimg="ref_${q.id}" alt="자료 문제">`:`<div class="hint">${q.refFile||q.ref?'자료 문제 이미지가 아직 없습니다. 막대를 눌러 [자료 문제 찾기]를 누르세요.':'비슷한 자료가 없습니다.'}</div>`;
   const grid=`<div class="qbody" style="gap:16px"><div><div class="hint" style="margin-bottom:6px">실제 시험</div>${qvisual(q)}</div><div><div class="hint" style="margin-bottom:6px">자료 문제</div>${right}</div></div>`;
   if(!pinned)return head+grid;
-  return head+grid+`<div class="st" style="margin-top:14px;flex-wrap:wrap"><button class="btn sm ${q.cmp?'':'pri'}" data-act="cmp-toggle" data-id="${q.id}">${q.cmp?'비교란에서 빼기':'비교란에 넣기'}</button>${q.refFile?`<button class="btn sm" data-act="cmp-find" data-id="${q.id}">${has?'자료 문제 다시 찾기':'자료 문제 찾기'}</button>`:''}<button class="btn sm" data-act="cmp-close">닫기</button></div><div tabindex="0" data-pasteref="${q.id}" style="margin-top:10px;border:1px dashed var(--line);border-radius:8px;padding:10px;font-size:12.5px">원하는 자료 문제가 다르면, 그 문제를 캡처한 뒤 여기를 클릭하고 Ctrl+V로 붙여넣으세요.</div>`;
+  return head+grid+`<div class="st" style="margin-top:14px;flex-wrap:wrap"><button class="btn sm ${q.cmp?'':'pri'}" data-act="cmp-toggle" data-id="${q.id}">${q.cmp?'비교란에서 빼기':'비교란에 넣기'}</button>${q.refFile||q.ref?`<button class="btn sm" data-act="cmp-find" data-id="${q.id}">${has?'자료 문제 다시 찾기':'자료 문제 찾기'}</button>`:''}<button class="btn sm" data-act="cmp-close">닫기</button></div><div tabindex="0" data-pasteref="${q.id}" style="margin-top:10px;border:1px dashed var(--line);border-radius:8px;padding:10px;font-size:12.5px">원하는 자료 문제가 다르면, 그 문제를 캡처한 뒤 여기를 클릭하고 Ctrl+V로 붙여넣으세요.</div>`;
 }
 function showPop(qid,pinned,anchor){
   const f=popFind(qid);if(!f)return;
@@ -1304,7 +1313,7 @@ async function findPair(qid,btn){
   const f=popFind(qid);if(!f)return;
   if(!ui.api||!ui.api.images){toast('이 화면에서는 이미지를 보낼 수 없어 자료 문제를 찾을 수 없습니다.');return}
   btn.disabled=true;btn.textContent='찾는 중…';
-  try{if(await makeRefImg(f.q)){save();render()}else toast('자료에서 같은 문제를 찾지 못했습니다. 직접 캡처해 붙여넣을 수 있습니다.')}catch(x){toast(errMsg(x))}
+  try{linkRef(f.q,f.e);if(await makeRefImg(f.q)){save();render()}else toast('자료에서 같은 문제를 찾지 못했습니다. 직접 캡처해 붙여넣을 수 있습니다.')}catch(x){toast(errMsg(x))}
   showPop(qid,true);
 }
 async function setRefImage(qid,blob){
@@ -1324,7 +1333,16 @@ async function getExamPages(rec){
   const src=await extractFile(file,true);
   return PAGES[rec.id]=src.pages;
 }
-async function setQImage(qid,blob){
+const solQ=id=>S.exams.flatMap(x=>x.questions).find(x=>x.id===id);
+function grabSol(q){const a=document.getElementById('anbox'),s=document.getElementById('solbox');if(a)q.analysis=a.value;if(s)q.solution=s.value}
+async function addSolImgs(qid,files){
+  const q=solQ(qid);if(!q)return;grabSol(q);let n=0;
+  for(const f of files){try{const url=await toJpeg(f,1400),sid='sol_'+uid();IMGS[sid]=url;
+    if(db){try{await db.doc('qimg/'+sid).set({d:url})}catch(x){toast('풀이 이미지를 서버에 저장하지 못했습니다.');continue}}
+    (q.solImgs=q.solImgs||[]).push(sid);n++}catch(x){toast('이미지를 읽을 수 없습니다.')}}
+  if(n){save();render();toast(`풀이 이미지 ${n}장을 올렸습니다.`)}
+}
+document.addEventListener('change',ev=>{const i=ev.target.closest&&ev.target.closest('input[data-solfile]');if(!i||!i.files.length)return;const fs=[...i.files];i.value='';addSolImgs(i.dataset.solfile,fs)});async function setQImage(qid,blob){
   const e=S.exams.find(x=>x.questions.some(q=>q.id===qid)),q=e&&e.questions.find(x=>x.id===qid);
   if(!q)return;
   try{
@@ -1336,6 +1354,8 @@ async function setQImage(qid,blob){
 document.addEventListener('paste',ev=>{
   const rb=ev.target.closest&&ev.target.closest('[data-pasteref]');
   if(rb){const it0=[...(ev.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));if(!it0){toast('클립보드에 이미지가 없습니다. 자료 문제를 캡처한 뒤 붙여넣으세요.');return}ev.preventDefault();setRefImage(rb.dataset.pasteref,it0.getAsFile());return}
+  const ps=ev.target.closest&&ev.target.closest('[data-pastesol]');
+  if(ps){const its=[...(ev.clipboardData?.items||[])].filter(i=>i.type.startsWith('image/'));if(!its.length){toast('클립보드에 이미지가 없습니다.');return}ev.preventDefault();addSolImgs(ps.dataset.pastesol,its.map(i=>i.getAsFile()));return}
   const b=ev.target.closest&&ev.target.closest('[data-pastebox]');if(!b)return;
   const it=[...(ev.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));
   if(!it){toast('클립보드에 이미지가 없습니다. 문항을 캡처한 뒤 붙여넣으세요.');return}
