@@ -680,7 +680,7 @@ function viewUpload(){
   <p class="hint">${esc(KIND_HELP[u.kind])}</p>`;
   const pend=pendTable();
   const files=[...S.files].filter(f=>(f.schoolId||COMMON)===ui.school).reverse();
-  const rows=files.map(f=>`<tr><td style="min-width:220px">${inp(`files/${f.id}/name`,{aria:'파일 이름'})}${f.kind==='전년도 기출'&&f.year?`<div class="hint">${esc(f.year)}년 기출</div>`:''}</td><td>${sel(`files/${f.id}/kind`,FILE_KINDS,{aria:'자료 종류'})}</td><td>${sel(`files/${f.id}/schoolId`,[['','공통'],...S.schools.map(x=>[x.id,x.name||'(이름 없음)'])],{aria:'학교'})}</td><td><div class="st" style="flex-wrap:nowrap">${sel(`files/${f.id}/grade`,gradeOpts(f.grade,true),{aria:'학년'})}${sel(`files/${f.id}/subject`,subjOpts(f.subject,true),{aria:'과목'})}</div></td><td><div class="st">${f.examId&&S.exams.find(e=>e.id===f.examId)?`<button class="btn sm" data-act="open-exam" data-id="${f.examId}">시험 열기</button>`:''}${f.assetId?`<a class="btn sm" href="/_blob/${esc(f.assetId)}" target="_blank" rel="noopener">원본</a>`:''}<button class="btn sm danger" data-act="del-file" data-id="${f.id}">삭제</button></div></td></tr>`).join('');
+  const rows=files.map(f=>`<tr><td style="min-width:220px">${inp(`files/${f.id}/name`,{aria:'파일 이름'})}${f.kind==='전년도 기출'&&f.year?`<div class="hint">${esc(f.year)}년 기출</div>`:''}</td><td>${sel(`files/${f.id}/kind`,FILE_KINDS,{aria:'자료 종류'})}</td><td>${sel(`files/${f.id}/schoolId`,[['','공통'],...S.schools.map(x=>[x.id,x.name||'(이름 없음)'])],{aria:'학교'})}</td><td><div class="st" style="flex-wrap:nowrap">${sel(`files/${f.id}/grade`,gradeOpts(f.grade,true),{aria:'학년'})}${sel(`files/${f.id}/subject`,subjOpts(f.subject,true),{aria:'과목'})}</div></td><td><div class="st">${f.examId&&S.exams.find(e=>e.id===f.examId)?`<button class="btn sm" data-act="open-exam" data-id="${f.examId}">시험 열기</button>`:''}${f.assetId?`<a class="btn sm" href="/_blob/${esc(f.assetId)}" target="_blank" rel="noopener">원본</a>`:'<span class="pill warn" title="원본 PDF가 보관되어 있지 않아 자료 문제 이미지를 만들 수 없습니다">원본 없음</span>'}<button class="btn sm danger" data-act="del-file" data-id="${f.id}">삭제</button></div></td></tr>`).join('');
   const target=common?'공통 자료':esc(s.name||'(이름 없음)');
   const infoP=s?`<section class="panel"><header><h3>${esc(s.name||'학교 정보')}</h3><button class="btn sm danger" data-act="del-school" data-id="${s.id}">학교 삭제</button></header>
     <div class="grid w2">${field('학교명',inp(`${base}/name`,{ph:'예: 청라중학교'}))}${field('구분',sel(`${base}/level`,['중','고']))}</div>
@@ -926,7 +926,7 @@ ${known.length?'이 학교 시험에서 쓴 적 있는 단원명: '+known.join('
 const norm=s=>String(s).toLowerCase().replace(/[\s.,;:'"“”‘’·•\-–—_()\[\]{}<>~`!?]/g,'');
 const grams=(s,n=3)=>{const g=new Set();for(let i=0;i+n<=s.length;i++)g.add(s.slice(i,i+n));return g};
 function chunksOf(f,t){
-  if(CH[f.id])return CH[f.id];const o=[],mk=[...t.matchAll(/\[(\d+)쪽\]/g)].map(m=>[m.index,+m[1]]),pgAt=p=>{let r=0;for(const [i,n] of mk){if(i<=p)r=n;else break}return r};
+  if(CH[f.id])return CH[f.id];const o=[],mk=[...t.matchAll(/\[(\d+)쪽\]|\[페이지 (\d+)[^\]]*\]/g)].map(m=>[m.index,+(m[1]||m[2])]),pgAt=p=>{let r=0;for(const [i,n] of mk){if(i<=p)r=n;else break}return r};
   for(let i=0;i<t.length;i+=250){const raw=t.slice(i,i+500);if(raw.trim().length>20)o.push({g:grams(norm(raw),2),ex:raw.replace(/\s+/g,' ').slice(0,400),pg:pgAt(i),pg2:pgAt(Math.min(t.length-1,i+499))})}
   return CH[f.id]=o;
 }

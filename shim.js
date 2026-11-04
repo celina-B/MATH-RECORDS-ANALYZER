@@ -33,12 +33,48 @@
     });
   }
 
+  // 비밀번호 변경 창. force=true 이면 닫을 수 없고, 바꿔야만 앱이 열립니다(처음 로그인).
+  function openPwModal(force) {
+    return new Promise(resolve => {
+      const m = document.createElement('div');
+      m.style.cssText = 'position:fixed;inset:0;z-index:99998;background:' + (force ? '#f4f4f4' : 'rgba(0,0,0,.4)') + ';display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,"Malgun Gothic",sans-serif';
+      m.innerHTML = '<form style="background:#fff;border:1px solid #ddd;border-radius:12px;padding:28px;width:min(360px,100%)">'
+        + '<b style="font-size:17px;color:#3B3D3F">' + (force ? '처음 로그인하셨습니다' : '비밀번호 변경') + '</b>'
+        + (force ? '<div style="font-size:13px;color:#777;margin-top:6px;line-height:1.5">안전을 위해 새 비밀번호를 정해 주세요. 정한 뒤에 앱이 열립니다.</div>' : '')
+        + '<input type="password" id="pw1" placeholder="새 비밀번호 (6자 이상)" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding:10px;margin:14px 0 8px;border:1px solid #ccc;border-radius:8px;font-size:14px" required>'
+        + '<input type="password" id="pw2" placeholder="새 비밀번호 한 번 더" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding:10px;margin-bottom:8px;border:1px solid #ccc;border-radius:8px;font-size:14px" required>'
+        + '<div id="pwmsg" style="min-height:18px;font-size:13px;color:#C8202B"></div>'
+        + '<div style="display:flex;gap:8px;margin-top:8px"><button style="flex:1;padding:10px;border:0;border-radius:8px;background:#C8202B;color:#fff;font-size:14px;cursor:pointer">변경</button>'
+        + (force ? '' : '<button type="button" id="pwx" style="flex:1;padding:10px;border:1px solid #ccc;border-radius:8px;background:#fff;font-size:14px;cursor:pointer">닫기</button>')
+        + '</div></form>';
+      document.body.appendChild(m);
+      const x = m.querySelector('#pwx');
+      if (x) x.onclick = () => { m.remove(); resolve(false); };
+      m.querySelector('form').onsubmit = async ev => {
+        ev.preventDefault();
+        const p1 = m.querySelector('#pw1').value, p2 = m.querySelector('#pw2').value, msg = m.querySelector('#pwmsg');
+        const { data: { session } } = await sb.auth.getSession();
+        const myId = ((session && session.user.email) || '').replace(ID_DOMAIN, '').toLowerCase();
+        if (p1.length < 6) { msg.textContent = '6자 이상으로 정해 주세요.'; return; }
+        if (p1.toLowerCase() === myId) { msg.textContent = '아이디와 다른 비밀번호로 정해 주세요.'; return; }
+        if (p1 !== p2) { msg.textContent = '두 번 입력한 비밀번호가 다릅니다.'; return; }
+        const { error } = await sb.auth.updateUser({ password: p1, data: { must_change_password: false } });
+        if (error) { msg.textContent = '변경하지 못했습니다: ' + error.message; return; }
+        msg.style.color = '#3B3D3F'; msg.textContent = '비밀번호를 바꿨습니다. 다음 로그인부터 새 비밀번호를 쓰세요.';
+        setTimeout(() => { m.remove(); resolve(true); }, 1200);
+      };
+    });
+  }
+
   async function ensureAccess() {
     for (;;) {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) { await gate(); continue; }
       const { data } = await sb.from('profiles').select('approved,role,name').eq('id', session.user.id).single();
-      if (data && data.approved) return { session, role: data.role, name: data.name };
+      if (data && data.approved) {
+        if (session.user.user_metadata && session.user.user_metadata.must_change_password) await openPwModal(true);
+        return { session, role: data.role, name: data.name };
+      }
       await sb.auth.signOut();
       await gate('이 계정은 아직 허용되지 않았습니다. 원장님께 문의하세요.');
     }
@@ -147,8 +183,35 @@
     return _fetch(u, o);
   };
 
+  // '원본' 링크(/_blob/<id>)를 눌렀을 때 보관함에서 내려받아 새 탭에 PDF로 열어 줍니다.
+  document.addEventListener('click', async ev => {
+    const a = ev.target.closest && ev.target.closest('a[href^="/_blob/"]');
+    if (!a) return;
+    ev.preventDefault();
+    const w = window.open('about:blank', '_blank');
+    const { data, error } = await sb.storage.from('files').download(a.getAttribute('href').slice(7));
+    if (error || !data) { if (w) w.close(); alert('원본 파일을 불러오지 못했습니다.'); return; }
+    const url = URL.createObjectURL(new Blob([data], { type: data.type && data.type !== 'application/octet-stream' ? data.type : 'application/pdf' }));
+    if (w) w.location = url; else location.href = url;
+  }, true);
+
   // 앱 본문이 `claude.use(...)` 를 호출하기 전에 로그인이 끝나도록 막아 둡니다.
   const ready = ensureAccess();
   window.claude = { use: async name => { await ready; return ({ db, sample, assets, downloads })[name]; } };
   window.logout = () => sb.auth.signOut().then(() => location.reload());
+
+  // 오른쪽 위 계정 표시: 이름, 비밀번호 변경, 로그아웃
+  ready.then(info => {
+    const id = (info.session.user.email || '').replace(ID_DOMAIN, '');
+    const chip = document.createElement('div');
+    chip.className = 'noprint';
+    chip.style.cssText = 'position:fixed;top:8px;right:8px;z-index:9500;display:flex;gap:10px;align-items:center;background:#fff;border:1px solid #ddd;border-radius:999px;padding:5px 14px;font:12px system-ui,"Malgun Gothic",sans-serif;color:#3B3D3F;box-shadow:0 1px 6px rgba(0,0,0,.12)';
+    chip.innerHTML = `<b>${(info.name || id).replace(/</g, '')}</b><a href="#" data-a="pw" style="color:#C8202B">비밀번호 변경</a><a href="#" data-a="out" style="color:#777">로그아웃</a>`;
+    document.body.appendChild(chip);
+    chip.onclick = ev => {
+      const a = ev.target.closest('a[data-a]'); if (!a) return; ev.preventDefault();
+      if (a.dataset.a === 'out') return window.logout();
+      openPwModal(false);
+    };
+  });
 })();
