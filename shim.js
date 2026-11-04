@@ -44,6 +44,32 @@
     }
   }
 
+  // ---- 분석 비용 표시: 호출이 5초간 없으면 "작업 완료"로 보고 이번 작업 비용을 띄웁니다 ----
+  const KRW_PER_USD = 1400; // 환산용 대략값(실제 청구는 달러 기준)
+  const run = { calls: 0, usd: 0, input: 0, output: 0 };   // 이번 작업
+  const tot = { calls: 0, usd: 0 };                        // 이번 접속 전체
+  let costTimer = null;
+  const fmt = u => `$${u.toFixed(3)} (약 ${Math.round(u * KRW_PER_USD).toLocaleString('ko-KR')}원)`;
+  function costAdd(u) {
+    if (!u) return;
+    run.calls++; run.usd += u.costUsd || 0; run.input += u.input || 0; run.output += u.output || 0;
+    tot.calls++; tot.usd += u.costUsd || 0;
+    clearTimeout(costTimer);
+    costTimer = setTimeout(costShow, 5000);
+  }
+  function costShow() {
+    if (!run.calls) return;
+    let el = document.getElementById('cost-toast');
+    if (!el) {
+      el = document.createElement('div'); el.id = 'cost-toast';
+      el.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:99998;background:#3B3D3F;color:#fff;border-radius:10px;padding:14px 16px;font:13px/1.6 system-ui,"Malgun Gothic",sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.25);max-width:280px';
+      document.body.appendChild(el);
+    }
+    el.innerHTML = `<b>분석 작업 완료</b><br>이번 작업 비용: <b>${fmt(run.usd)}</b><br>Claude 호출 ${run.calls}회 · 입력 ${run.input.toLocaleString('ko-KR')} / 출력 ${run.output.toLocaleString('ko-KR')} 토큰<br><span style="opacity:.7">이번 접속 누적 ${fmt(tot.usd)} · ${tot.calls}회</span><br><a href="#" style="color:#fff;text-decoration:underline">닫기</a>`;
+    el.querySelector('a').onclick = ev => { ev.preventDefault(); el.remove(); };
+    run.calls = 0; run.usd = 0; run.input = 0; run.output = 0;
+  }
+
   const blobToB64 = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result.split(',')[1]); f.readAsDataURL(b); });
   const who = () => sb.auth.getSession().then(s => s.data.session?.user?.email || '');
 
@@ -88,6 +114,7 @@
       });
       const out = await r.json();
       if (!r.ok) throw Object.assign(new Error(out.error || '분석 실패'), { code: r.status });
+      costAdd(out.usage);
       const t = out.text, i = t.search(/[\[{]/), j = Math.max(t.lastIndexOf('}'), t.lastIndexOf(']'));
       return JSON.parse(t.slice(i, j + 1));
     }
@@ -109,6 +136,15 @@
       a.href = URL.createObjectURL(data instanceof Blob ? data : new Blob([data]));
       a.download = filename; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     }
+  };
+
+  // 앱이 원본 파일을 '/_blob/<id>' 주소로 읽으므로, 이 주소를 Supabase 파일 보관함으로 연결합니다.
+  const _fetch = window.fetch.bind(window);
+  window.fetch = (u, o) => {
+    if (typeof u === 'string' && u.startsWith('/_blob/')) {
+      return sb.storage.from('files').download(u.slice(7)).then(({ data, error }) => error ? new Response(null, { status: 404 }) : new Response(data));
+    }
+    return _fetch(u, o);
   };
 
   // 앱 본문이 `claude.use(...)` 를 호출하기 전에 로그인이 끝나도록 막아 둡니다.
