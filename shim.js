@@ -4,6 +4,7 @@
 (function () {
   const SUPABASE_URL = 'https://oenngemiydqbkfgnxgia.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_c1ylACuS9X6xzHeO1jHxHA_JGCSVlbK'; // 공개용 키(RLS가 보호)
+  const ID_DOMAIN = '@cheongra.example.com'; // 아이디만 입력하면 뒤에 자동으로 붙는 내부용 주소(실제 메일 아님)
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   const css = `#gate{position:fixed;inset:0;z-index:99999;background:#f4f4f4;display:flex;align-items:center;justify-content:center;font-family:system-ui,'Malgun Gothic',sans-serif}
@@ -18,13 +19,14 @@
     return new Promise(resolve => {
       const g = document.createElement('div'); g.id = 'gate';
       g.innerHTML = `<form><h1>청라 내신 분석실</h1><p>허용된 선생님만 사용할 수 있습니다.</p>
-        <input type="email" id="g-e" placeholder="이메일" autocomplete="username" required>
+        <input type="text" id="g-e" placeholder="아이디" autocomplete="username" autocapitalize="off" required>
         <input type="password" id="g-p" placeholder="비밀번호" autocomplete="current-password" required>
         <button>로그인</button><div class="err">${msg || ''}</div></form>`;
       document.body.appendChild(g);
       g.querySelector('form').onsubmit = async ev => {
         ev.preventDefault();
-        const { error } = await sb.auth.signInWithPassword({ email: g.querySelector('#g-e').value.trim(), password: g.querySelector('#g-p').value });
+        const id = g.querySelector('#g-e').value.trim().toLowerCase();
+        const { error } = await sb.auth.signInWithPassword({ email: id.includes('@') ? id : id + ID_DOMAIN, password: g.querySelector('#g-p').value });
         if (error) { g.querySelector('.err').textContent = '이메일 또는 비밀번호가 올바르지 않습니다.'; return; }
         g.remove(); resolve();
       };
