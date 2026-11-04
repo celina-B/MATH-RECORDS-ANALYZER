@@ -443,7 +443,7 @@ function viewReport(){
   const kq=a.keyQ.map(q=>`<article class="qcard"><header><span class="no">${q.no}번</span><span class="pill">${esc(q.type==='객관'?'객관식':'서답형')}</span><span class="pill ${isHigh(q)?'hot':''}">${esc(q.diff)}</span><span class="pill">${fmt(q.score,1)}점</span>${q.correctRate!=null?`<span class="pill ${q.correctRate<=40?'hot':'good'}">정답률 ${q.correctRate}%</span>`:''}${q.discrim?'<span class="pill hot">변별 문항</span>':''}<span class="hint">${esc(q.unit)} · ${esc(q.source)}${q.ref?' · '+esc(q.ref):''}</span></header>
     <div class="qbody"><div>${qvisual(q)}</div><div style="display:flex;flex-direction:column;gap:8px;min-width:0">
     ${q.topic?`<div><b>출제 포인트</b> ${esc(q.topic)}</div>`:''}${q.simSchool!=null?`<div class="hint">학교 자료 유사도 ${pc(q.simSchool)}${q.ref?' · 참고 '+esc(q.ref):''}</div>`:''}
-    ${q.solution?`<pre>${esc(q.solution)}</pre>`:'<div class="hint">풀이가 아직 없습니다. [시험 입력]에서 해당 문항의 풀이 버튼을 눌러 작성하세요.</div>'}</div></div></article>`).join('');
+    ${ui.editSol===q.id?`<textarea id="solbox" rows="10">${esc(solClean(q.solution))}</textarea><div class="st noprint"><button class="btn sm pri" data-act="sol-save" data-id="${q.id}">저장</button><button class="btn sm" data-act="sol-cancel">취소</button><span class="hint">수식은 $ 사이에 LaTeX로 적습니다. 예: $x^2+1$, $\\frac{a}{b}$, $\\sqrt{3}$, $\\lim_{x\\to 0}$</span></div>`:`${q.solution?`<pre>${solHtml(q.solution)}</pre>`:'<div class="hint">풀이가 아직 없습니다. 아래 [풀이 수정]을 눌러 직접 적거나, [시험 입력]에서 풀이 초안을 만드세요.</div>'}<div class="st noprint"><button class="btn sm" data-act="sol-edit" data-id="${q.id}">풀이 수정</button></div>`}</div></div></article>`).join('');
   const kP=`<section class="panel"><header><h3>주요문항 설명 및 풀이</h3>${hbtn('key')}</header>${kq||'<div class="empty">주요·변별 표시를 한 문항이나 난이도 최상 문항이 여기에 나타납니다.</div>'}</section>`;
   const cq=[...a.qs].filter(q=>q.cmp&&q.simBest!=null&&(q.refImg||IMGS['ref_'+q.id])).sort((x,y)=>x.no-y.no);
   const cmpCards=cq.map(q=>{const v=q.simBest;return`<article class="qcard pair"><header><span class="no">${q.no}번</span><span class="pill hot">${v>=T.t1?'거의 동일':v>=T.t2?'변형':'유사'} ${v}%</span><span class="hint">${esc(q.ref||'')}${q.refPageShown?' · '+q.refPageShown+'쪽':''}</span><button class="btn sm noprint" data-act="cmp-remove" data-id="${q.id}">빼기</button></header><div class="qbody"><div><div class="hint" style="margin-bottom:6px">실제 시험</div>${qvisual(q)}</div><div><div class="hint" style="margin-bottom:6px">자료 문제</div><img class="qimg" data-qimg="ref_${q.id}" alt="${q.no}번과 비슷한 자료 문제"></div></div></article>`}).join('');
@@ -538,6 +538,9 @@ document.addEventListener('click',ev=>{
   else if(act==='add-school'){const s={id:uid(),name:'',level:'중',note:'',textbooks:[],materials:[]};S.schools.push(s);ui.school=s.id;save();render()}
   else if(act==='hide-item'){S.cover.hide=[...new Set([...(S.cover.hide||[]),id])];save();render()}
   else if(act==='show-item'){S.cover.hide=(S.cover.hide||[]).filter(x=>x!==id);save();render()}
+  else if(act==='sol-edit'){ui.editSol=id;render()}
+  else if(act==='sol-cancel'){ui.editSol=null;render()}
+  else if(act==='sol-save'){const q=S.exams.flatMap(x=>x.questions).find(x=>x.id===id),bx=document.getElementById('solbox');if(q&&bx){q.solution=bx.value.trim();ui.editSol=null;save();render()}}
   else if(act==='open-pair')showPop(id,true);
   else if(act==='cmp-close')hidePop();
   else if(act==='cmp-toggle')togglePair(id);
@@ -981,9 +984,10 @@ async function draftSolutions(e){
   const r=await ask(`한국 중·고등 수학 교사를 돕는 풀이 초안 작성입니다. 아래 문항마다 JSON 배열만 출력하세요. 원소: {"k":문항 번호,"solution":"출제 의도 한 줄, 풀이 단계(①②③…), 학생이 틀리기 쉬운 지점 한 줄. 600자 이내"}
 풀이에는 2022 개정 교육과정에 포함된 개념·정리·공식·풀이법만 사용하세요. 2022 개정 교육과정에 없는 내용(예: 로피탈 정리, 이전 교육과정에서 삭제·이동된 내용, 대학 과정 개념)은 쓰지 말고, 교과서 범위 안의 방법으로만 푸세요. 교과서 범위 안의 방법으로 풀 수 없거나 확신이 없으면 그 사실을 적으세요.
 본문이 불완전해서 확신할 수 없으면 그 사실을 적고 확실한 부분만 쓰세요.
+풀이에 들어가는 모든 수식은 2022 개정 고등학교 교과서의 표기를 따르는 LaTeX로 쓰고, 한 줄 수식은 $...$ 사이에 넣으세요(예: $x^2-3x+2=0$, $\\frac{a}{b}$, $\\sqrt{3}$, $\\lim_{x\\to 0}$, $\\log_2 8$, $\\sin\\theta$, $\\sum_{k=1}^{n}k$). JSON 문자열 안이므로 역슬래시는 반드시 두 번(\\\\)으로 쓰세요. 숫자·문자 하나짜리 수식도 $ 안에 넣으세요.
 
 `+t.map((q,k)=>`### k=${k+1} (${q.unit||'단원 미상'}, 난이도 ${q.diff})\n${q.stem}`).join('\n\n'));
-  (Array.isArray(r)?r:[]).forEach(o=>{const q=t[Number(o.k)-1];if(q&&o.solution){q.solution='[AI 초안·검수 필요]\n'+String(o.solution);q.key=true}});
+  (Array.isArray(r)?r:[]).forEach(o=>{const q=t[Number(o.k)-1];if(q&&o.solution){q.solution=String(o.solution);q.key=true}});
   log('✓ 풀이 초안을 넣었습니다. 시험 입력의 풀이 칸에서 확인하고 고치세요.');
 }
 const SCORE_RE=/\[\s*(\d+(?:\.\d+)?)\s*점\s*\]/g;
@@ -1103,6 +1107,13 @@ function hydrateImgs(){
     else el.replaceWith(Object.assign(document.createElement('div'),{className:'hint',textContent:'문항 이미지를 불러오지 못했습니다.'}));
   });
 }
+/* 풀이 수식: $...$ 안의 LaTeX를 KaTeX로 그립니다. 불러오지 못하면 글자 그대로 보입니다. */
+function solClean(s){return String(s||'').replace(/^\[AI 초안[^\]]*\]\s*/,'')}
+function solHtml(s){s=solClean(s);const re=/\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g;let m,last=0,out='';
+  while((m=re.exec(s))){out+=esc(s.slice(last,m.index));let h;try{h=window.katex?window.katex.renderToString(m[1]!=null?m[1]:m[2],{displayMode:m[1]!=null,throwOnError:false}):null}catch(x){h=null}out+=h||esc(m[0]);last=re.lastIndex}
+  return out+esc(s.slice(last))}
+(function loadKatex(){try{const l=document.createElement('link');l.rel='stylesheet';l.href='https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css';document.head.appendChild(l);
+  const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js';sc.onload=()=>{if(typeof render==='function'&&ui.tab==='report'&&!ui.editSol)render()};document.head.appendChild(sc)}catch(e){}})();
 const qvisual=q=>q.hasImg||IMGS[q.id]?`<img class="qimg" data-qimg="${q.id}" alt="${q.no}번 문항">`:q.stem?`<pre>${esc(q.stem)}</pre>`:'<div class="hint">문항 이미지가 없습니다. [시험 입력]에서 자동 자르기를 하거나 직접 붙여넣으세요.</div>';
 async function toJpeg(blob,maxW=900){
   const bmp=await createImageBitmap(blob),k=Math.min(1,maxW/bmp.width),c=document.createElement('canvas');
