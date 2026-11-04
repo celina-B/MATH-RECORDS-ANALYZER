@@ -200,17 +200,30 @@
   window.claude = { use: async name => { await ready; return ({ db, sample, assets, downloads })[name]; } };
   window.logout = () => sb.auth.signOut().then(() => location.reload());
 
+  // 바탕화면에 앱 설치 (크롬/엣지: 설치하면 바탕화면·시작 메뉴에 아이콘이 생깁니다)
+  let installEv = null;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEv = e; });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  async function installApp() {
+    if (installEv) { installEv.prompt(); await installEv.userChoice.catch(() => {}); installEv = null; return; }
+    // 설치 창을 쓸 수 없는 경우: 바탕화면용 바로가기 파일(.url)을 내려받게 함
+    const blob = new Blob(['[InternetShortcut]\r\nURL=' + location.origin + location.pathname + '\r\n'], { type: 'text/plain' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '청라 내신 분석실.url'; a.click();
+    alert('바로가기 파일을 내려받았습니다. 파일을 바탕화면으로 옮기면 아이콘이 됩니다.\n(크롬 주소창 오른쪽의 설치 아이콘이 보이면 그것을 눌러도 됩니다.)');
+  }
   // 오른쪽 위 계정 표시: 이름, 비밀번호 변경, 로그아웃
   ready.then(info => {
     const id = (info.session.user.email || '').replace(ID_DOMAIN, '');
     const chip = document.createElement('div');
     chip.className = 'noprint';
     chip.style.cssText = 'position:fixed;top:8px;right:8px;z-index:9500;display:flex;gap:10px;align-items:center;background:#fff;border:1px solid #ddd;border-radius:999px;padding:5px 14px;font:12px system-ui,"Malgun Gothic",sans-serif;color:#3B3D3F;box-shadow:0 1px 6px rgba(0,0,0,.12)';
-    chip.innerHTML = `<b>${(info.name || id).replace(/</g, '')}</b><a href="#" data-a="pw" style="color:#C8202B">비밀번호 변경</a><a href="#" data-a="out" style="color:#777">로그아웃</a>`;
+    const inApp = matchMedia('(display-mode: standalone)').matches;
+    chip.innerHTML = `<b>${(info.name || id).replace(/</g, '')}</b><a href="#" data-a="pw" style="color:#C8202B">비밀번호 변경</a><a href="#" data-a="out" style="color:#777">로그아웃</a>${inApp ? '' : '<a href="#" data-a="inst" style="color:#0a7d3b">바탕화면에 앱 설치</a>'}`;
     document.body.appendChild(chip);
     chip.onclick = ev => {
       const a = ev.target.closest('a[data-a]'); if (!a) return; ev.preventDefault();
       if (a.dataset.a === 'out') return window.logout();
+      if (a.dataset.a === 'inst') return installApp();
       openPwModal(false);
     };
   });
