@@ -1112,8 +1112,13 @@ function solClean(s){return String(s||'').replace(/^\[AI 초안[^\]]*\]\s*/,'')}
 function solHtml(s){s=solClean(s);const re=/\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g;let m,last=0,out='';
   while((m=re.exec(s))){out+=esc(s.slice(last,m.index));let h;try{h=window.katex?window.katex.renderToString(m[1]!=null?m[1]:m[2],{displayMode:m[1]!=null,throwOnError:false}):null}catch(x){h=null}out+=h||esc(m[0]);last=re.lastIndex}
   return out+esc(s.slice(last))}
-(function loadKatex(){try{const l=document.createElement('link');l.rel='stylesheet';l.href='https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css';document.head.appendChild(l);
-  const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js';sc.onload=()=>{if(typeof render==='function'&&ui.tab==='report'&&!ui.editSol)render()};document.head.appendChild(sc)}catch(e){}})();
+(function loadKatex(){let n=0;const srcs=['katex-bundle.js','https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js'];
+  const done=()=>{if(typeof render==='function'&&ui.tab==='report'&&!ui.editSol)render()};
+  const css=()=>{if(document.getElementById('katex-css'))return;const l=document.createElement('link');l.id='katex-css';l.rel='stylesheet';l.href='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css';document.head.appendChild(l)};
+  function retry(){n++;setTimeout(go,Math.min(30000,1000*n))}
+  function go(){if(window.katex)return;const sc=document.createElement('script');sc.src=srcs[n%srcs.length]+(n>=srcs.length?'?r='+n:'');
+    sc.onload=()=>{if(window.katex){if(sc.src.indexOf('jsdelivr')>=0)css();done()}else retry()};sc.onerror=()=>{sc.remove();retry()};document.head.appendChild(sc)}
+  go()})();
 const qvisual=q=>q.hasImg||IMGS[q.id]?`<img class="qimg" data-qimg="${q.id}" alt="${q.no}번 문항">`:q.stem?`<pre>${esc(q.stem)}</pre>`:'<div class="hint">문항 이미지가 없습니다. [시험 입력]에서 자동 자르기를 하거나 직접 붙여넣으세요.</div>';
 async function toJpeg(blob,maxW=900){
   const bmp=await createImageBitmap(blob),k=Math.min(1,maxW/bmp.width),c=document.createElement('canvas');
