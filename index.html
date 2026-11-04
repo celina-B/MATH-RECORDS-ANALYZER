@@ -1188,6 +1188,7 @@ async function getMatPdf(rec){
   if(MATPDF[rec.id])return MATPDF[rec.id];
   const r=await fetch('/_blob/'+rec.assetId);if(!r.ok)throw new Error('원본 파일을 불러오지 못했습니다.');
   const buf=await (await r.blob()).arrayBuffer();
+  if(new TextDecoder().decode(new Uint8Array(buf,0,4))!=='%PDF')throw new Error(`${rec.name}: PDF 파일이 아니어서 자료 문제 이미지를 만들 수 없습니다. 캡처를 붙여넣어 넣어 주세요.`);
   pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   return MATPDF[rec.id]=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
 }
@@ -1201,7 +1202,7 @@ async function renderOne(pdf,i){
 async function makeRefImg(q){
   const f=S.files.find(x=>x.id===q.refFile);
   if(!f||!q.refPage)return false;
-  if(!f.assetId||!/\.pdf$/i.test(f.name))throw new Error(`${f.name}: 원본 PDF가 보관되어 있지 않습니다. [자료 업로드]에서 다시 올려 주세요.`);
+  if(!f.assetId)throw new Error(`${f.name}: 원본 PDF가 보관되어 있지 않습니다. [자료 업로드]에서 다시 올려 주세요.`);
   const pdf=await getMatPdf(f),np=pdf.numPages;
   const pgs=[...new Set([q.refPage,q.refPage2&&q.refPage2!==q.refPage?q.refPage2:0].filter(p=>p>=1&&p<=np))];
   if(!pgs.length)return false;
