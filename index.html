@@ -1064,10 +1064,16 @@ async function reanalyze(){
 const UQ=[];let uploading=false;
 async function runUpload(){
   if(!ui.pending.length){toast('파일을 먼저 선택하세요.');return}
-  if(busy&&!uploading){toast('다른 작업이 진행 중입니다. 끝난 뒤 다시 눌러 주세요.');return}
   const bad=ui.pending.find(it=>(it.meta.kind==='시험지'||it.meta.kind==='전년도 기출')&&!it.meta.schoolId);
   if(bad){toast(`"${bad.file.name}"은(는) 학교를 골라야 합니다. 확인표의 학교 칸을 선택하세요.`);return}
-  const batch={items:ui.pending.map(it=>({f:it.file,u:{...it.meta}}))};UQ.push(batch);ui.pending=[];
+  const batch={items:ui.pending.map(it=>({f:it.file,u:{...it.meta}}))};ui.pending=[];
+  /* 다른 작업(재분석 등)이 진행 중이면 업로드도 거절하지 않고 그 작업 뒤에 이어서 처리합니다 */
+  if(busy&&!uploading){
+    JQ.push({fn:async()=>{const last=await uploadBatch(batch.items);log(last?'✓ 업로드 완료. [시험 입력] 탭에서 자동 입력된 문항을 확인하세요.':'✓ 업로드 완료.')},snap:ui.exam});
+    log(`＋ 대기열 ${JQ.length}번째에 파일 ${batch.items.length}개 업로드를 추가했습니다. 진행 중인 작업이 끝나면 이어서 처리합니다.`);
+    toast('업로드를 대기열에 추가했습니다. 이어서 처리합니다.');render();return;
+  }
+  UQ.push(batch);
   if(uploading){
     log(`＋ 대기열에 ${batch.items.length}개를 추가했습니다. 진행 중인 작업이 끝나면 이어서 처리합니다.`);
     toast('대기열에 추가했습니다. 이어서 처리합니다.');render();return;
