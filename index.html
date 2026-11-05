@@ -482,7 +482,7 @@ function unflagExamples(){
   (S.exams||[]).forEach(e=>{if(e.example&&real.has(e.schoolId)){e.example=false;ch=true}});
   if(ch)save();
 }
-function ensure(){unflagExamples();S.files=S.files||[];S.cover=Object.assign({academy:'캐슬수학',sub:'청라 지역 중·고등 내신 분석',author:'',logo:'',hide:[],thr1:60,thr2:30},S.cover)}
+function ensure(){unflagExamples();S.files=S.files||[];S.files.forEach(f=>{if(!f.schoolId&&!f.level)f.level=f.grade?f.grade[0]:'고'});S.cover=Object.assign({academy:'캐슬수학',sub:'청라 지역 중·고등 내신 분석',author:'',logo:'',hide:[],thr1:60,thr2:30},S.cover)}
 function coverHtml(e){
   const c=S.cover,sc=schoolOf(e.schoolId),a=analyze(e),t=new Date(),ds=`${t.getFullYear()}.${String(t.getMonth()+1).padStart(2,'0')}.${String(t.getDate()).padStart(2,'0')}`;
   const tb=pubOf(e)||'-';
@@ -663,16 +663,19 @@ async function download(name,data){
 const FILE_KINDS=['시험지','전년도 기출','교과서','학교 프린트','부교재','모의고사 기출','학원 자료'];
 const KIND_HELP={'시험지':'학교 시험지. 올리면 문항을 읽어 시험 입력표를 자동으로 채웁니다.','전년도 기출':'이 학교의 지난 시험지. 분석지의 시험 문항으로 들어가지 않고, 올해 문항과 비교하는 출처 분석 자료로만 쓰입니다.','교과서':'교과서 본문·예제·연습문제','학교 프린트':'수업 중 배부된 학교 프린트·학습지','부교재':'학교가 지정한 부교재·워크북','모의고사 기출':'모의고사·평가원·교육청 기출','학원 자료':'우리 학원 교재와 프린트'};
 const jobPanel=()=>`<div style="display:flex;flex-direction:column;gap:6px"><div class="st"><b>진행 상황</b>${busy?'<button class="btn sm danger" data-act="stop-job">중단</button>':''}</div><pre class="log" id="joblog">${esc(ui.log.join('\n'))}</pre></div>`;
-const COMMON='__common';
+const COMMON='__common',COM_M='__common_mid',COM_H='__common_high',isCom=id=>id===COMMON||id===COM_M||id===COM_H;
+/* 공통 자료는 중등/고등으로 나눕니다. 구분이 비어 있으면 학년(중1 등)에서 읽고, 그것도 없으면 고등으로 봅니다. */
+const fLevel=f=>f.level||(f.grade?f.grade[0]:'고'),fBucket=f=>f.schoolId||(fLevel(f)==='중'?COM_M:COM_H),levelOfSchool=id=>{const s=schoolOf(id);return s?s.level:null};
 document.addEventListener('toggle',ev=>{const d=ev.target;if(d&&d.matches&&d.matches('details[data-cs]'))ui.coverOpen=d.open},true);
 function viewUpload(){
-  if(ui.school!==COMMON&&!schoolOf(ui.school))ui.school=S.schools[0]?.id||COMMON;
-  const common=ui.school===COMMON,s=common?null:schoolOf(ui.school),base=`schools/${ui.school}`,a=ui.api;
+  if(ui.school===COMMON)ui.school=COM_H;
+  if(!isCom(ui.school)&&!schoolOf(ui.school))ui.school=S.schools[0]?.id||COM_H;
+  const common=isCom(ui.school),lvl=ui.school===COM_M?'중':'고',lvlName=lvl==='중'?'중등':'고등',s=common?null:schoolOf(ui.school),base=`schools/${ui.school}`,a=ui.api;
   const kinds=common?FILE_KINDS.filter(k=>k!=='시험지'&&k!=='전년도 기출'):FILE_KINDS;
   if(!kinds.includes(ui.up.kind))ui.up.kind=kinds[0];
   const u=ui.up,isEx=u.kind==='시험지';
-  const nFiles=id=>S.files.filter(f=>(f.schoolId||COMMON)===id).length;
-  const list=`<button class="item" data-act="pick-school" data-id="${COMMON}" aria-current="${common}"><b>공통 자료</b><small>학원 교재·모의고사 기출 · 파일 ${nFiles(COMMON)}개</small></button>`
+  const nFiles=id=>S.files.filter(f=>fBucket(f)===id).length;
+  const list=[[COM_M,'중등'],[COM_H,'고등']].map(([id,nm])=>`<button class="item" data-act="pick-school" data-id="${id}" aria-current="${id===ui.school}"><b>공통 자료 · ${nm}</b><small>학원 교재·모의고사 기출 · 파일 ${nFiles(id)}개</small></button>`).join('')
     +S.schools.map(x=>`<button class="item" data-act="pick-school" data-id="${x.id}" aria-current="${x.id===ui.school}"><b>${esc(x.name||'(이름 없음)')} ${x.example?'<span class="ex">예시</span>':''}</b><small>${esc(x.level)} · 시험 ${S.exams.filter(e=>e.schoolId===x.id).length}건 · 파일 ${nFiles(x.id)}개</small></button>`).join('');
   const status=a?`<div class="st"><span class="pill ${a.sample?'good':'warn'}">Claude 자동 분석 ${a.sample?'사용 가능':'사용 불가'}</span><span class="pill ${a.images?'good':'warn'}">스캔본·사진 읽기 ${a.images?'사용 가능':'사용 불가'}</span><span class="pill ${a.assets?'good':'warn'}">원본 보관 ${a.assets?'사용 가능':'편집 권한 필요'}</span><span class="pill ${a.pdf?'good':'warn'}">PDF 읽기 ${a.pdf?'사용 가능':'불러오지 못함'}</span></div>`:'<p class="hint">기능 확인 중…</p>';
   const rowsTb=s?s.textbooks.map(t=>`<tr><td>${sel(`${base}/textbooks/${t.id}/grade`,gradeOpts(t.grade,true),{aria:'학년'})}</td><td>${sel(`${base}/textbooks/${t.id}/subject`,subjOpts(t.subject,true),{aria:'과목'})}</td><td>${inp(`${base}/textbooks/${t.id}/publisher`,{ph:'출판사',aria:'출판사'})}</td><td>${inp(`${base}/textbooks/${t.id}/memo`,{aria:'메모'})}</td><td><button class="btn sm danger" data-act="del" data-path="${base}/textbooks/${t.id}">삭제</button></td></tr>`).join(''):'';
@@ -683,15 +686,15 @@ function viewUpload(){
   ${u.kind==='시험지'?field('연도',`<input data-u="year" id="u-year" type="number" value="${esc(u.year)}">`)+field('학기',`<select data-u="semester" id="u-sem"><option value="1"${u.semester==='1'?' selected':''}>1학기</option><option value="2"${u.semester==='2'?' selected':''}>2학기</option></select>`)+field('시험',`<select data-u="term" id="u-term"><option${u.term==='중간'?' selected':''}>중간</option><option${u.term==='기말'?' selected':''}>기말</option></select>`):''}</div>
   <p class="hint">${esc(KIND_HELP[u.kind])}</p>`;
   const pend=pendTable();
-  const files=[...S.files].filter(f=>(f.schoolId||COMMON)===ui.school).reverse();
-  const rows=files.map(f=>`<tr><td style="min-width:220px">${inp(`files/${f.id}/name`,{aria:'파일 이름'})}${f.kind==='전년도 기출'&&f.year?`<div class="hint">${esc(f.year)}년 기출</div>`:''}</td><td>${sel(`files/${f.id}/kind`,FILE_KINDS,{aria:'자료 종류'})}</td><td>${sel(`files/${f.id}/schoolId`,[['','공통'],...S.schools.map(x=>[x.id,x.name||'(이름 없음)'])],{aria:'학교'})}</td><td><div class="st" style="flex-wrap:nowrap">${sel(`files/${f.id}/grade`,gradeOpts(f.grade,true),{aria:'학년'})}${sel(`files/${f.id}/subject`,subjOpts(f.subject,true),{aria:'과목'})}</div></td><td><div class="st">${f.examId&&S.exams.find(e=>e.id===f.examId)?`<button class="btn sm" data-act="open-exam" data-id="${f.examId}">시험 열기</button>`:''}${f.assetId?`<a class="btn sm" href="/_blob/${esc(f.assetId)}" target="_blank" rel="noopener">원본</a>`:'<span class="pill warn" title="원본 PDF가 보관되어 있지 않아 자료 문제 이미지를 만들 수 없습니다">원본 없음</span>'}<button class="btn sm danger" data-act="del-file" data-id="${f.id}">삭제</button></div></td></tr>`).join('');
-  const target=common?'공통 자료':esc(s.name||'(이름 없음)');
+  const files=[...S.files].filter(f=>fBucket(f)===ui.school).reverse();
+  const rows=files.map(f=>`<tr><td style="min-width:220px">${inp(`files/${f.id}/name`,{aria:'파일 이름'})}${f.kind==='전년도 기출'&&f.year?`<div class="hint">${esc(f.year)}년 기출</div>`:''}</td><td>${sel(`files/${f.id}/kind`,FILE_KINDS,{aria:'자료 종류'})}</td><td>${sel(`files/${f.id}/schoolId`,[['','공통'],...S.schools.map(x=>[x.id,x.name||'(이름 없음)'])],{aria:'학교'})}${f.schoolId?'':sel(`files/${f.id}/level`,[['고','고등'],['중','중등']],{aria:'공통 자료 구분'})}</td><td><div class="st" style="flex-wrap:nowrap">${sel(`files/${f.id}/grade`,gradeOpts(f.grade,true),{aria:'학년'})}${sel(`files/${f.id}/subject`,subjOpts(f.subject,true),{aria:'과목'})}</div></td><td><div class="st">${f.examId&&S.exams.find(e=>e.id===f.examId)?`<button class="btn sm" data-act="open-exam" data-id="${f.examId}">시험 열기</button>`:''}${f.assetId?`<a class="btn sm" href="/_blob/${esc(f.assetId)}" target="_blank" rel="noopener">원본</a>`:'<span class="pill warn" title="원본 PDF가 보관되어 있지 않아 자료 문제 이미지를 만들 수 없습니다">원본 없음</span>'}<button class="btn sm danger" data-act="del-file" data-id="${f.id}">삭제</button></div></td></tr>`).join('');
+  const target=common?'공통 자료 · '+lvlName:esc(s.name||'(이름 없음)');
   const infoP=s?`<section class="panel"><header><h3>${esc(s.name||'학교 정보')}</h3><button class="btn sm danger" data-act="del-school" data-id="${s.id}">학교 삭제</button></header>
     <div class="grid w2">${field('학교명',inp(`${base}/name`,{ph:'예: 청라중학교'}))}${field('구분',sel(`${base}/level`,['중','고']))}</div>
     ${field('학교 특성·내신 대비 메모 (출제 교사 성향, 서술형 비중, 시험 범위 공지 방식 등)',ta(`${base}/note`,2))}</section>
   <section class="panel"><header><h3>교과서 출판사</h3><button class="btn sm" data-act="add" data-path="${base}/textbooks">+ 추가</button></header>
     <div class="tw"><table><thead><tr><th>학년</th><th>과목</th><th>출판사</th><th>메모</th><th></th></tr></thead><tbody>${rowsTb||'<tr><td colspan="5" class="hint" style="padding:12px">교과서 정보를 추가하세요.</td></tr>'}</tbody></table></div></section>`
-    :`<section class="panel"><header><h3>공통 자료</h3></header><p class="hint">특정 학교에 묶이지 않는 자료입니다. 학원 교재, 학원 프린트, 모의고사·평가원·교육청 기출을 여기에 올리면 모든 학교의 시험 분석에 쓰입니다. 올릴 때 학년을 고르면 같은 학년 시험에만, 비워 두면 모든 학년 시험에 쓰입니다.</p></section>`;
+    :`<section class="panel"><header><h3>공통 자료 · ${lvlName}</h3></header><p class="hint">특정 학교에 묶이지 않는 ${lvlName} 자료입니다. 학원 교재, 학원 프린트, 모의고사·평가원·교육청 기출을 여기에 올리면 모든 ${lvlName} 학교의 시험 분석에 쓰입니다. 올릴 때 학년을 고르면 같은 학년 시험에만, 비워 두면 모든 학년 시험에 쓰입니다.</p></section>`;
   const upP=`<section class="panel"><header><h3>자료 올리기</h3>${status}</header>
   <p class="hint">PDF, 사진(JPG·PNG), 텍스트 파일을 올릴 수 있습니다. HWP·DOCX는 PDF로 저장해서 올려 주세요. 부교재·프린트·기출을 먼저 올리고 시험지를 나중에 올리면, 시험지 문항의 출처와 유사도가 자료를 기준으로 자동 입력됩니다.</p>
   ${form}
@@ -707,7 +710,7 @@ function viewUpload(){
     ?`<section class="panel"><header><h3>학원 자료 목록 (파일 없이 기록)</h3><button class="btn sm" data-act="add" data-path="academy">+ 추가</button></header><p class="hint">파일은 없지만 시험 입력의 '참고자료' 칸에서 고를 수 있게 자료명만 적어 둘 때 씁니다.</p>${mt('academy',S.academy.map(m=>matRow('academy',m)).join(''))}</section>`
     :`<section class="panel"><header><h3>학교 자료 목록 (파일 없이 기록)</h3><button class="btn sm" data-act="add" data-path="${base}/materials">+ 추가</button></header><p class="hint">파일은 없지만 시험 입력의 '참고자료' 칸에서 고를 수 있게 자료명만 적어 둘 때 씁니다.</p>${mt(base+'/materials',s.materials.map(m=>matRow(base+'/materials',m)).join(''))}</section>`;
   return datalists()+`<div class="schools"><section class="panel"><header><h3>분석할 학교</h3><button class="btn sm pri" data-act="add-school">+ 학교 추가</button></header>
-  <select id="school-pick" data-act-change="pick-school" aria-label="학교 선택"><option value="${COMMON}"${common?' selected':''}>공통 자료</option>${S.schools.map(x=>`<option value="${x.id}"${x.id===ui.school?' selected':''}>${esc(x.name||'(이름 없음)')}${x.example?' (예시)':''}</option>`).join('')}</select>
+  <select id="school-pick" data-act-change="pick-school" aria-label="학교 선택"><option value="${COM_M}"${ui.school===COM_M?' selected':''}>공통 자료 · 중등</option><option value="${COM_H}"${ui.school===COM_H?' selected':''}>공통 자료 · 고등</option>${S.schools.map(x=>`<option value="${x.id}"${x.id===ui.school?' selected':''}>${esc(x.name||'(이름 없음)')}${x.example?' (예시)':''}</option>`).join('')}</select>
   <div class="list">${list}</div>
   ${S.schools.some(x=>x.example)||S.exams.some(x=>x.example)?'<button class="btn sm" data-act="clear-examples">예시 데이터 모두 삭제</button>':''}</section>
   <div style="display:flex;flex-direction:column;gap:20px;min-width:0">${infoP}${upP}${filesP}${manP}</div></div>`;
@@ -750,8 +753,9 @@ function parseName(name){
 function makeMeta(f){
   const p=parseName(f.name),d=ui.up;
   const kind=p.kind||d.kind;
-  const defSchool=COMMON_KINDS.includes(kind)?'':(ui.school===COMMON?'':ui.school);
-  return{kind,schoolId:p.schoolId!==undefined?p.schoolId:defSchool,grade:p.grade||d.grade||'',subject:p.subject||d.subject||'',year:p.year||(kind==='전년도 기출'?'':String(d.year)),semester:p.semester||d.semester,term:p.term||d.term,visual:VISUAL_KINDS.includes(kind),detected:Object.keys(p).filter(k=>k!=='gradeNum')};
+  const defSchool=COMMON_KINDS.includes(kind)?'':(isCom(ui.school)?'':ui.school);
+  const gr0=p.grade||d.grade||'';
+  return{kind,schoolId:p.schoolId!==undefined?p.schoolId:defSchool,level:gr0[0]==='중'?'중':(ui.school===COM_M?'중':'고'),grade:gr0,subject:p.subject||d.subject||'',year:p.year||(kind==='전년도 기출'?'':String(d.year)),semester:p.semester||d.semester,term:p.term||d.term,visual:VISUAL_KINDS.includes(kind),detected:Object.keys(p).filter(k=>k!=='gradeNum')};
 }
 function pendTable(){
   if(!ui.pending.length)return'';
@@ -759,7 +763,7 @@ function pendTable(){
   const ps=(i,k,opts,bad)=>`<select data-pm="${i}:${k}" aria-label="${k}"${bad?' style="border-color:var(--accent)"':''}>${opts.map(x=>{const v=Array.isArray(x)?x[0]:x,t=Array.isArray(x)?x[1]:x;return`<option value="${esc(v)}"${String(v)===String(ui.pending[i].meta[k])?' selected':''}>${esc(t||'-')}</option>`}).join('')}</select>`;
   const rows=ui.pending.map((it,i)=>{
     const m=it.meta,isH=/\.hwpx$/i.test(it.file.name),ex=m.kind==='시험지',bad=(ex||m.kind==='전년도 기출')&&!m.schoolId;
-    return`<tr><td class="pn">${esc(it.file.name)}<div class="hint">${(it.file.size/1048576).toFixed(1)}MB</div></td><td>${ps(i,'kind',FILE_KINDS)}</td><td>${ps(i,'schoolId',so,bad)}</td><td>${ps(i,'grade',gradeOpts(m.grade,true))}</td><td>${ps(i,'subject',subjOpts(m.subject,true))}</td>
+    return`<tr><td class="pn">${esc(it.file.name)}<div class="hint">${(it.file.size/1048576).toFixed(1)}MB</div></td><td>${ps(i,'kind',FILE_KINDS)}</td><td>${ps(i,'schoolId',so,bad)}${m.schoolId?'':ps(i,'level',[['고','고등'],['중','중등']])}</td><td>${ps(i,'grade',gradeOpts(m.grade,true))}</td><td>${ps(i,'subject',subjOpts(m.subject,true))}</td>
     <td>${ex?`<div class="st" style="flex-wrap:nowrap"><input type="number" data-pm="${i}:year" value="${esc(m.year)}" style="width:76px" aria-label="연도">${ps(i,'semester',[['1','1학기'],['2','2학기']])}${ps(i,'term',['중간','기말'])}</div>`:m.kind==='전년도 기출'?`<span class="hint">${m.year?esc(m.year)+'년 기출 (파일 이름 기준)':'연도를 읽지 못했습니다. 파일 이름에 연도(예: 2024)를 넣으세요'}</span>`:'<span class="hint">-</span>'}</td>
     <td>${isH?'<span class="hint">수식 그대로</span>':`<input type="checkbox" data-pm="${i}:visual" ${m.visual?'checked':''} aria-label="수식 정확히 읽기">`}</td><td><button class="btn sm danger" data-act="rm-pending" data-id="${i}" aria-label="${esc(it.file.name)} 취소">× 취소</button></td></tr>`}).join('');
   return`<div class="st" style="align-items:center"><b>업로드 확인표</b><span class="hint">파일 이름에서 읽은 내용입니다. 틀린 칸만 고치고 아래 버튼을 누르세요. "수식 정확히 읽기"를 켜면 PDF를 사진으로 보고 수식까지 읽습니다(시간과 사용량이 더 듭니다). 한글(HWPX) 파일은 수식을 그대로 읽습니다.</span></div><div class="tw"><table class="pt"><thead><tr><th>파일</th><th>종류</th><th>학교</th><th>학년</th><th>과목</th><th>시험 정보</th><th title="PDF를 사진으로 보고 수식까지 정확히 읽습니다">수식 정확히 읽기</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -772,13 +776,13 @@ function gridPanel(){
   S.exams.forEach(e=>{if(e.grade&&e.subject)map.set(e.grade+'|'+e.subject,[e.grade,e.subject])});
   S.files.forEach(f=>{if(f.grade&&f.subject)map.set(f.grade+'|'+f.subject,[f.grade,f.subject])});
   const cols=[...map.values()].sort((a,b)=>GRADES.indexOf(a[0])-GRADES.indexOf(b[0])||String(a[1]).localeCompare(String(b[1]),'ko'));
-  const cell=(sid,c)=>{
+  const cell=(sid,c,lv)=>{
     const ex=S.exams.filter(e=>e.schoolId===sid&&e.grade===c[0]&&e.subject===c[1]).length;
-    const mt=S.files.filter(f=>(f.schoolId||'')===sid&&f.kind!=='시험지'&&f.grade===c[0]&&f.subject===c[1]).length;
-    const on=(sid||COMMON)===ui.school&&ui.up.grade===c[0]&&ui.up.subject===c[1];
-    return`<td><button class="gcell${ex||mt?' has':''}${on?' on':''}" data-act="ctx" data-id="${sid||COMMON}" data-g="${esc(c[0])}" data-s="${esc(c[1])}" aria-label="${esc(c[0]+' '+c[1])} 올리기">${ex||mt?`<b>시험 ${ex}</b><small>자료 ${mt}</small>`:'<span>+</span>'}</button></td>`;
+    const mt=S.files.filter(f=>(f.schoolId||'')===sid&&(sid||fLevel(f)===lv)&&f.kind!=='시험지'&&f.grade===c[0]&&f.subject===c[1]).length;
+    const bid=sid||(lv==='중'?COM_M:COM_H),on=bid===ui.school&&ui.up.grade===c[0]&&ui.up.subject===c[1];
+    return`<td><button class="gcell${ex||mt?' has':''}${on?' on':''}" data-act="ctx" data-id="${bid}" data-g="${esc(c[0])}" data-s="${esc(c[1])}" aria-label="${esc(c[0]+' '+c[1])} 올리기">${ex||mt?`<b>시험 ${ex}</b><small>자료 ${mt}</small>`:'<span>+</span>'}</button></td>`;
   };
-  const rows=[...S.schools.map(s=>`<tr><th>${esc(s.name||'(이름 없음)')}</th>${cols.map(c=>cell(s.id,c)).join('')}</tr>`),`<tr><th>공통 자료</th>${cols.map(c=>cell('',c)).join('')}</tr>`].join('');
+  const rows=[...S.schools.map(s=>`<tr><th>${esc(s.name||'(이름 없음)')}</th>${cols.map(c=>cell(s.id,c)).join('')}</tr>`),`<tr><th>공통 자료 · 중등</th>${cols.map(c=>cell('',c,'중')).join('')}</tr>`,`<tr><th>공통 자료 · 고등</th>${cols.map(c=>cell('',c,'고')).join('')}</tr>`].join('');
   return`<section class="panel"><header><h3>현황판</h3><span class="hint">칸을 누르면 [자료 업로드]로 이동하고, 그 학교·학년·과목이 기본값으로 정해집니다</span></header><div class="tw"><table class="gt"><thead><tr><th>학교</th>${cols.map(c=>`<th>${esc(c[0])}<br>${esc(c[1])}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 ['dragover','dragleave','drop'].forEach(t=>document.addEventListener(t,ev=>{
@@ -938,7 +942,7 @@ const isEasy=q=>q.diff==='하'||q.diff==='중'||(q.score!=null&&Number(q.score)<
 const SCHOOL_K=['학교 프린트','부교재','전년도 기출'];
 async function matchExam(e){
   /* 공통 자료는 모든 학교에 쓰이되, 학년을 지정했으면 같은 학년 시험에만 씁니다. 학교 자료는 그 학교 시험에만 씁니다. */
-  const mats=S.files.filter(f=>f.kind!=='시험지'&&f.chars&&(f.schoolId?f.schoolId===e.schoolId:(!f.grade||f.grade===e.grade)));
+  const mats=S.files.filter(f=>f.kind!=='시험지'&&f.chars&&(f.schoolId?f.schoolId===e.schoolId:((!levelOfSchool(e.schoolId)||fLevel(f)===levelOfSchool(e.schoolId))&&(!f.grade||f.grade===e.grade))));
   if(!mats.length){log('▷ 비교할 교과서·부교재·기출·학원 자료가 없어 출처·유사도 분석을 건너뜁니다. [자료 업로드]에서 자료를 먼저 올려 주세요.');return}
   const withStem=e.questions.filter(q=>q.stem&&q.stem.length>15);
   if(!withStem.length){log('▷ 문항 본문이 없어 자료와 비교할 수 없습니다. 문항 풀이 칸의 본문을 채우거나 시험지 파일을 올려 주세요.');return}
@@ -1052,7 +1056,7 @@ async function uploadBatch(items){
   for(const {f,u} of items){
     if(ctl.signal.aborted)break;
     const isEx=u.kind==='시험지';
-    const rec={id:uid(),name:f.name,kind:u.kind,schoolId:u.schoolId||'',grade:u.grade,subject:u.subject,size:f.size,addedAt:Date.now(),status:'읽는 중'};
+    const rec={id:uid(),name:f.name,kind:u.kind,schoolId:u.schoolId||'',level:u.schoolId?undefined:(u.level||'고'),grade:u.grade,subject:u.subject,size:f.size,addedAt:Date.now(),status:'읽는 중'};
     if(u.kind==='전년도 기출'&&u.year)rec.year=u.year;
     try{
       log(`▶ ${f.name} · ${u.kind}`);
@@ -1383,7 +1387,7 @@ async function layoutReportInner(){
   if(!window.html2canvas)throw new Error('이미지 도구를 불러오지 못했습니다. 새로고침한 뒤 다시 눌러 주세요.');
   return withLightTheme(async()=>{
     const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-    const W=210,H=297,MX=8,MT=11,CW=W-2*MX,CH=H-2*MT;
+    const W=210,H=297,MX=8,MT=11,CW=W-2*MX,COM_H=H-2*MT;
     await waitImgs(root);
     const unitsOf=()=>{
       const u=[];
@@ -1415,19 +1419,19 @@ async function layoutReportInner(){
     let caps=await capture(),split=splitOf(caps);
     const baseGap=3;
     const total0=()=>caps.slice(0,split+1).reduce((t,x)=>t+hAt(x,CW)+baseGap,0)-baseGap;
-    if(total0()>CH){
+    if(total0()>COM_H){
       root.classList.add('compact');
       caps=await capture();split=splitOf(caps);
     }
     const first=caps.slice(0,split+1),rest=caps.slice(split+1);
     const sumH=first.reduce((t,x)=>t+hAt(x,CW),0);
     /* 2) 필요하면 전체를 같은 비율로 줄이고(55%까지), 남는 세로 공간은 위·아래·항목 사이에 고르게 나눕니다 */
-    const sc1=Math.max(0.55,Math.min(1,(CH-baseGap*(first.length-1))/sumH)),w1=CW*sc1;
+    const sc1=Math.max(0.55,Math.min(1,(COM_H-baseGap*(first.length-1))/sumH)),w1=CW*sc1;
     const hs=first.map(x=>hAt(x,w1)),tot=hs.reduce((a,b)=>a+b,0);
-    const free=CH-tot;
+    const free=COM_H-tot;
     const gap=first.length>1?Math.min(10,Math.max(2,free/(first.length-1)*0.8)):0;
     const used=tot+gap*(first.length-1);
-    const top=MT+Math.max(0,Math.min(14,(CH-used)/2));
+    const top=MT+Math.max(0,Math.min(14,(COM_H-used)/2));
     const x1=MX+(CW-w1)/2;
     const pages=[[]];let y=top;
     first.forEach((x,i)=>{pages[0].push({c:x.c,x:x1,y,w:w1,h:hs[i]});y+=hs[i]+gap});
@@ -1436,9 +1440,9 @@ async function layoutReportInner(){
     const put=(cv,w,xo,hh)=>{if(y+hh>H-MT&&pages[pages.length-1].length){pages.push([]);y=MT}pages[pages.length-1].push({c:cv,x:xo,y,w,h:hh});y+=hh+4};
     for(const x of rest){
       const c=x.c,w=CW,h=hAt(x,w);
-      if(h<=CH)put(c,w,MX,h);
+      if(h<=COM_H)put(c,w,MX,h);
       else{
-        const sliceH=Math.floor(CH*c.width/w);
+        const sliceH=Math.floor(COM_H*c.width/w);
         for(let off=0;off<c.height;off+=sliceH){
           const sl=document.createElement('canvas');sl.width=c.width;sl.height=Math.min(sliceH,c.height-off);
           sl.getContext('2d').drawImage(c,0,off,c.width,sl.height,0,0,c.width,sl.height);
