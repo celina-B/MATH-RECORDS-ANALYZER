@@ -574,7 +574,7 @@ document.addEventListener('click',ev=>{
   else if(act==='ctx'){ui.tab='upload';ui.school=id;ui.up.grade=b.dataset.g;ui.up.subject=b.dataset.s;render();document.getElementById('drop')?.scrollIntoView({block:'center'});toast(`${b.dataset.g} ${b.dataset.s}: 파일을 올리면 이 학년·과목이 기본값으로 들어갑니다.`)}
   else if(act==='clear-pending'){ui.pending=[];render()}
   else if(act==='run-upload')runUpload();
-  else if(act==='stop-job'){ctl?.abort();UQ.length=0;log('중단을 요청했습니다. 대기 중인 파일도 취소합니다.')}
+  else if(act==='stop-job'){ctl?.abort();UQ.length=0;JQ.length=0;log('중단을 요청했습니다. 대기 중인 작업도 모두 취소합니다.')}
   else if(act==='rm-pending'){ui.pending.splice(Number(id),1);render()}
   else if(act==='match-exam')job(async()=>{const e=S.exams.find(x=>x.id===ui.exam);if(e)await matchExam(e)});
   else if(act==='draft-sol')job(async()=>{const e=S.exams.find(x=>x.id===ui.exam);if(e)await draftSolutions(e)});
@@ -825,13 +825,28 @@ function errMsg(e){
   return({not_granted:'Claude 사용이 허용되지 않았습니다. 허용 창에서 승인해 주세요.',sampling_disabled:'이 계정에서는 Claude를 사용할 수 없습니다.',rate_limited:'요청이 많거나 사용 한도에 도달했습니다. 잠시 뒤 다시 시도하세요.',cancelled:'중단했습니다.',invalid_json:'결과를 읽지 못했습니다. 다시 시도하세요.',image_rejected:'이미지를 읽을 수 없습니다. 다른 파일로 시도하세요.',images_unavailable:'이 화면에서는 이미지를 Claude에 보낼 수 없습니다.',prompt_too_large:'내용이 너무 길어 한 번에 읽지 못했습니다.'})[c]||(e&&e.message)||String(c||e);
 }
 const ask=(prompt,images)=>smp.json(prompt,{images:images&&images.length?images:undefined,signal:ctl&&ctl.signal,cache:false});
-async function job(fn){
-  if(busy){toast('다른 작업이 진행 중입니다.');return}
+/* 작업 대기열: 진행 중에 다른 작업(다른 학교·시험 포함)을 누르면 거절하지 않고 줄을 세워 이어서 처리합니다.
+   작업은 누른 시점에 선택돼 있던 시험을 기준으로 실행됩니다. */
+const JQ=[];
+function drainJQ(){const n=JQ.shift();if(n)job(n.fn,n.snap)}
+async function job(fn,snapId){
+  const snap=snapId||ui.exam;
+  if(busy){
+    const e0=S.exams.find(x=>x.id===snap);
+    JQ.push({fn,snap});
+    log(`＋ 대기열 ${JQ.length}번째에 추가했습니다${e0?' ('+examLabel(e0)+')':''}. 진행 중인 작업이 끝나면 이어서 처리합니다.`);
+    toast('작업을 대기열에 추가했습니다. 이어서 처리합니다.');render();return;
+  }
   await initApis();
   if(!smp){toast('이 화면에서는 Claude 자동 분석을 사용할 수 없습니다.');return}
   busy=true;smpDead=false;ctl=new AbortController();ui.log=[];render();
-  try{await fn()}catch(e){log('✗ '+errMsg(e))}
-  busy=false;save();render();
+  let cur={fn,snap};
+  while(cur){
+    try{const keep=ui.exam;ui.exam=cur.snap;const p=cur.fn();ui.exam=keep;await p}catch(e){log('✗ '+errMsg(e))}
+    cur=ctl.signal.aborted?null:JQ.shift();
+    if(cur){const e1=S.exams.find(x=>x.id===cur.snap);log(`▶ 대기 중이던 작업을 시작합니다${e1?' ('+examLabel(e1)+')':''}.`)}
+  }
+  JQ.length=0;busy=false;save();render();
 }
 function mimeFor(f){const x=f.name.split('.').pop().toLowerCase();return({pdf:'application/pdf',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif',txt:'text/plain',md:'text/markdown',csv:'text/csv'})[x]}
 async function extractFile(f,wantPages,visual){
@@ -1064,7 +1079,7 @@ async function runUpload(){
     const b=UQ.shift();
     last=(await uploadBatch(b.items))||last;
   }
-  UQ.length=0;uploading=false;busy=false;save();
+  UQ.length=0;uploading=false;busy=false;save();if(JQ.length)setTimeout(drainJQ,0);
   if(last)log('✓ 완료. [시험 입력] 탭에서 자동 입력된 문항을 확인하세요.');else log('✓ 완료.');
   render();
 }
