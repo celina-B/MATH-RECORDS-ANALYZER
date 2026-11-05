@@ -793,7 +793,7 @@ function gridPanel(){
 
 /* ---------- 파일 읽기 ---------- */
 const TEXTS={},CH={};
-const PART=80000,MAXTEXT=400000;
+const PART=80000,MAXTEXT=1500000;
 let smp=null,assetsApi=null,apisP=null,busy=false,ctl=null,smpDead=false;
 function initApis(){
   return apisP||(apisP=(async()=>{
@@ -863,7 +863,7 @@ async function readHwpx(f){
   }
   log('  한글(HWPX) 파일의 수식을 그대로 읽었습니다.');
   return{text:out.replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n'),images:[],pages:[],hwpx:true};
-}const MAXSCAN=60;
+}const MAXSCAN=600;
 async function renderPages(pdf,n){
   const out=[];
   for(let i=1;i<=n;i++){
@@ -879,7 +879,8 @@ async function ocr(images,label){
   let out='';const bs=batches(images,ui.api.maxImg);
   for(let i=0;i<bs.length;i++){
     log(`  글자 읽는 중 (${i+1}/${bs.length})`);
-    const r=await smp(`첨부 이미지는 '${label}'의 페이지입니다. 모든 글자와 수식을 위에서 아래로 순서대로 한국어 텍스트로 옮겨 적으세요. 모든 수식은 LaTeX 형식으로 정확하게 옮기고(예: \\lim_{x\\to-\\infty}\\frac{|x-1|}{x}, f(x)=x^3-3x), 그래프나 그림은 [그림: 한 줄 설명]으로 표시하세요. 설명이나 요약은 붙이지 마세요.`,{images:bs[i],signal:ctl.signal,cache:false});
+    const p0=i*ui.api.maxImg+1;
+    const r=await smp(`첨부 이미지는 '${label}'의 페이지이며, 첫 이미지는 ${p0}쪽이고 순서대로 쪽 번호가 1씩 커집니다. 각 페이지 글자 앞에 한 줄로 [${p0}쪽], [${p0+1}쪽] 처럼 쪽 표시를 붙이세요. 모든 글자와 수식을 위에서 아래로 순서대로 한국어 텍스트로 옮겨 적으세요. 모든 수식은 LaTeX 형식으로 정확하게 옮기고(예: \\lim_{x\\to-\\infty}\\frac{|x-1|}{x}, f(x)=x^3-3x), 그래프나 그림은 [그림: 한 줄 설명]으로 표시하세요. 설명이나 요약은 붙이지 마세요.`,{images:bs[i],signal:ctl.signal,cache:false});
     out+=r.text+'\n\n';
   }
   return out;
