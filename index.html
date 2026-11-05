@@ -876,10 +876,11 @@ async function renderPages(pdf,n){
 }
 const batches=(a,n)=>{const o=[];for(let i=0;i<a.length;i+=n)o.push(a.slice(i,i+n));return o};
 async function ocr(images,label){
-  let out='';const bs=batches(images,ui.api.maxImg);
+  /* 한 번에 3쪽씩 읽어, 글자가 많은 쪽도 답이 중간에 잘리지 않게 합니다 */
+  const per=Math.min(ui.api.maxImg,3);let out='';const bs=batches(images,per);
   for(let i=0;i<bs.length;i++){
     log(`  글자 읽는 중 (${i+1}/${bs.length})`);
-    const p0=i*ui.api.maxImg+1;
+    const p0=i*per+1;
     const r=await smp(`첨부 이미지는 '${label}'의 페이지이며, 첫 이미지는 ${p0}쪽이고 순서대로 쪽 번호가 1씩 커집니다. 각 페이지 글자 앞에 한 줄로 [${p0}쪽], [${p0+1}쪽] 처럼 쪽 표시를 붙이세요. 모든 글자와 수식을 위에서 아래로 순서대로 한국어 텍스트로 옮겨 적으세요. 모든 수식은 LaTeX 형식으로 정확하게 옮기고(예: \\lim_{x\\to-\\infty}\\frac{|x-1|}{x}, f(x)=x^3-3x), 그래프나 그림은 [그림: 한 줄 설명]으로 표시하세요. 설명이나 요약은 붙이지 마세요.`,{images:bs[i],signal:ctl.signal,cache:false});
     out+=r.text+'\n\n';
   }
