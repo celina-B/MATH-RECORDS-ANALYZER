@@ -156,6 +156,25 @@
     }
   };
 
+  // 앱의 사진 글자읽기(ocr)는 sample(...)을 함수로 불러 {text}를 받습니다. 원래 환경과 같게 함수 + limits/json 으로 만듭니다.
+  const sampleFn = Object.assign(async (prompt, opts = {}) => {
+    const { data: { session } } = await sb.auth.getSession();
+    const images = [];
+    for (const im of opts.images || []) {
+      const blob = im instanceof Blob ? im : await (await fetch(im)).blob();
+      images.push({ media_type: blob.type || 'image/jpeg', data: await blobToB64(blob) });
+    }
+    const r = await fetch(SUPABASE_URL + '/functions/v1/claude', {
+      method: 'POST', signal: opts.signal,
+      headers: { 'content-type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + session.access_token },
+      body: JSON.stringify({ prompt, images })
+    });
+    const out = await r.json();
+    if (!r.ok) throw Object.assign(new Error(out.error || '분석 실패'), { code: r.status });
+    costAdd(out.usage);
+    return { text: out.text };
+  }, { limits: sample.limits, json: sample.json });
+
   const assets = {
     async upload(file) {
       const id = crypto.randomUUID();
@@ -197,7 +216,7 @@
 
   // 앱 본문이 `claude.use(...)` 를 호출하기 전에 로그인이 끝나도록 막아 둡니다.
   const ready = ensureAccess();
-  window.claude = { use: async name => { await ready; return ({ db, sample, assets, downloads })[name]; } };
+  window.claude = { use: async name => { await ready; return ({ db, sample: sampleFn, assets, downloads })[name]; } };
   window.logout = () => sb.auth.signOut().then(() => location.reload());
 
   // 바탕화면에 앱 설치 (크롬/엣지: 설치하면 바탕화면·시작 메뉴에 아이콘이 생깁니다)
