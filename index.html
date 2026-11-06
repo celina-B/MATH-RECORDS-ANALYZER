@@ -1191,6 +1191,17 @@ function peelOnce(c){
   for(let x=w-1;x>w-1-bw;x--)if(vl(x)&&thinV(x,-1))r=x-1;
   for(let y=0;y<bh;y++)if(hrun(y)>=w*0.5)t=y+1;
   for(let y=h-1;y>h-1-bh;y--)if(hrun(y)>=w*0.5)b=y-1;
+  /* 위·아래 가장자리 쪽의 가로로 긴 가는 회색 선(쪽 머리글 선 등)은 빈 여백을 건너뛰어서라도 걷어냅니다.
+     그 선보다 바깥에는 글자가 없을 때만, 최대 3겹까지 자릅니다. */
+  const rowAll=y=>{let n=0;for(let x=0;x<w;x++)if(dk(x,y))n++;return n};
+  {let y=t;for(let it=0;it<3;it++){
+    while(y<h*0.4&&rowAll(y)<w*0.004)y++;
+    let e=y;while(e<h&&e-y<=14&&hrun(e)>=w*0.5)e++;
+    if(e>y&&e-y<=12){t=Math.max(t,e);y=e}else break}}
+  {let y=b;for(let it=0;it<3;it++){
+    while(y>h*0.6&&rowAll(y)<w*0.004)y--;
+    let e=y;while(e>=0&&y-e<=14&&hrun(e)>=w*0.5)e--;
+    if(e<y&&y-e<=12){b=Math.min(b,e);y=e}else break}}
   if(r-l<40||b-t<20){l=0;r=w-1;t=0;b=h-1}
   /* 남은 가장자리의 빈 여백 정리 */
   const colInk=x=>{let n=0;for(let y=t;y<=b;y++)if(dk(x,y))n++;return n};
