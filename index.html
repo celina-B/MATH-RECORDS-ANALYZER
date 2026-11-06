@@ -1202,6 +1202,8 @@ function peelOnce(c){
     while(y>h*0.6&&rowAll(y)<w*0.004)y--;
     let e=y;while(e>=0&&y-e<=14&&hrun(e)>=w*0.5)e--;
     if(e<y&&y-e<=12){b=Math.min(b,e);y=e}else break}}
+  /* 맨 위 12% 안에 가로로 긴 가는 선이 있으면, 그 위에 머리글 조각이 있어도 선까지 잘라냅니다(아래쪽은 선택지가 잘릴 수 있어 건드리지 않음) */
+  for(let y=t;y<h*0.12;y++){if(hrun(y)>=w*0.5){let e=y;while(e<h&&e-y<=14&&hrun(e)>=w*0.5)e++;if(e-y<=12)t=Math.max(t,e);y=e}}
   if(r-l<40||b-t<20){l=0;r=w-1;t=0;b=h-1}
   /* 남은 가장자리의 빈 여백 정리 */
   const colInk=x=>{let n=0;for(let y=t;y<=b;y++)if(dk(x,y))n++;return n};
