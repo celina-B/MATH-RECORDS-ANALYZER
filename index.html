@@ -1262,34 +1262,57 @@ function linkRef(q,e){
   const f=S.files.find(x=>x.name===q.ref&&x.kind!=='시험지'&&x.assetId&&(!x.schoolId||!e||x.schoolId===e.schoolId));
   if(f){q.refFile=f.id;q.refPage=1;q.refAll=true}
 }
-async function makeRefImg(q,wide){
+/* 자료 속 비슷한 문제를 찾아 이미지로 자릅니다.
+   - 시험 문항은 글자 대신(글자를 못 읽은 문항도 있음) 문항 이미지를 함께 보여 줍니다.
+   - 연결된 쪽 → 앞뒤 1쪽 → 앞뒤 3쪽 → 자료 전체(가까운 쪽부터 5쪽씩) 순으로, 찾을 때까지 자동으로 넓혀 갑니다. */
+async function findRefIn(q,f,pdf,pgs,qBlob){
+  const blobs=[];for(const p of pgs)blobs.push(await renderOne(pdf,p));
+  const imgs=qBlob?[qBlob,...blobs]:blobs;
+  const stemTxt=(q.stem||q.topic||'').replace(/\s+/g,' ').slice(0,400);
+  const r=await ask(`${qBlob?'첫 번째 이미지는 찾아야 할 시험 문항이고, 이어지는 이미지는':'첨부 이미지는'} 자료 '${f.name}'의 ${pgs.join('·')}쪽이며 자료 이미지는 순서대로 page 1~${blobs.length}입니다.
+${qBlob?'시험 문항과':'아래 시험 문항과'} 같거나 가장 비슷한 자료 속 문제 하나를 찾아, 그 문제 전체(문제 번호, 문장, 보기, 그림·표 포함)를 감싸는 직사각형을 JSON 객체 하나로만 답하세요.
+형식: {"page":1~${blobs.length},"box":[x0,y0,x1,y1]}. 좌표는 그 페이지 이미지 전체를 0~1로 정규화한 값이며 왼쪽 위가 (0,0)입니다. 비슷한 문제가 보이지 않으면 {"page":0}.
+문제 번호와 첫 글자, 줄 끝 글자, 마지막 보기까지 절대 잘리지 않도록 상하좌우로 한두 글자 정도 여유를 두고 넉넉하게 감싸세요. 2단 편집이면 해당 단 안에서만 감싸고 이웃 문제가 섞이지 않게 하세요.
+${qBlob?'참고용 문항 글자(부정확할 수 있으니 첫 이미지를 기준으로 하세요): ':'시험 문항: '}${stemTxt}`,imgs);
+  const pg=Number(r&&r.page);
+  if(!pg||!Array.isArray(r.box)||r.box.length!==4||!blobs[pg-1])return null;
+  const url=await cropBox(blobs[pg-1],r.box);
+  return url?{url,page:pgs[pg-1]}:null;
+}
+async function makeRefImg(q){
   const f=S.files.find(x=>x.id===q.refFile);
   if(!f||!q.refPage)return false;
   if(!f.assetId)throw new Error(`${f.name}: 원본 PDF가 보관되어 있지 않습니다. [자료 업로드]에서 다시 올려 주세요.`);
   const pdf=await getMatPdf(f),np=pdf.numPages;
-  if(q.refAll&&np>8)throw new Error(`${f.name}: 쪽 표시가 없고 ${np}쪽이라 자료 쪽을 알 수 없습니다. [시험 입력]에서 출처·유사도를 다시 분석해 주세요.`);
-  let base=q.refAll?Array.from({length:np},(_,i)=>i+1):[q.refPage,q.refPage2&&q.refPage2!==q.refPage?q.refPage2:0];
-  if(wide&&!q.refAll)base=base.flatMap(p=>p?[p-1,p,p+1]:[]);
-  const pgs=[...new Set(base.filter(p=>p>=1&&p<=np))].sort((a,b)=>a-b);
-  if(!pgs.length)return false;
-  const blobs=[];for(const p of pgs)blobs.push(await renderOne(pdf,p));
-  const r=await ask(`첨부 이미지는 자료 '${f.name}'의 ${pgs.join('·')}쪽이며 순서대로 page 1~${blobs.length}입니다.
-아래 시험 문항과 같거나 가장 비슷한 자료 속 문제 하나를 찾아, 그 문제 전체(문제 번호, 문장, 보기, 그림·표 포함)를 감싸는 직사각형을 JSON 객체 하나로만 답하세요.
-형식: {"page":1~${blobs.length},"box":[x0,y0,x1,y1]}. 좌표는 그 페이지 이미지 전체를 0~1로 정규화한 값이며 왼쪽 위가 (0,0)입니다. 비슷한 문제가 보이지 않으면 {"page":0}.
-문제 번호와 첫 글자, 줄 끝 글자, 마지막 보기까지 절대 잘리지 않도록 상하좌우로 한두 글자 정도 여유를 두고 넉넉하게 감싸세요. 2단 편집이면 해당 단 안에서만 감싸고 이웃 문제가 섞이지 않게 하세요.
-
-시험 문항: ${(q.stem||q.topic||'').replace(/\s+/g,' ').slice(0,400)}`,blobs);
-  const pg=Number(r&&r.page);
-  if(!pg||!Array.isArray(r.box)||r.box.length!==4||!blobs[pg-1])return (!wide&&!q.refAll)?makeRefImg(q,true):false;
-  const url=await cropBox(blobs[pg-1],r.box);if(!url)return (!wide&&!q.refAll)?makeRefImg(q,true):false;
-  IMGS['ref_'+q.id]=url;q.refImg=true;q.refPageShown=pgs[pg-1];
-  if(db){try{await db.doc('qimg/ref_'+q.id).set({d:url})}catch(x){toast('자료 문제 이미지를 서버에 저장하지 못했습니다. 이 화면에서만 보입니다.')}}
-  return true;
+  let qBlob=null;
+  try{const u=(q.hasImg||IMGS[q.id])?await loadQImg(q.id):null;if(u)qBlob=await(await fetch(u)).blob()}catch(e){}
+  const valid=p=>p>=1&&p<=np,tried=new Set();
+  const stage=ps=>[...new Set(ps.filter(valid))].filter(p=>!tried.has(p)).sort((x,y)=>x-y);
+  const near=n=>{const o=[];for(const p of [q.refPage,q.refPage2||0]){if(!p)continue;for(let d=-n;d<=n;d++)o.push(p+d)}return o};
+  const stages=[];
+  if(q.refAll){if(np>8)throw new Error(`${f.name}: 쪽 표시가 없고 ${np}쪽이라 자료 쪽을 알 수 없습니다. [시험 입력]에서 출처·유사도를 다시 분석해 주세요.`);stages.push(Array.from({length:np},(_,i)=>i+1))}
+  else{
+    stages.push([q.refPage,q.refPage2&&q.refPage2!==q.refPage?q.refPage2:0]);
+    stages.push(near(1));stages.push(near(3));
+    const rest=Array.from({length:np},(_,i)=>i+1).sort((x,y)=>Math.abs(x-q.refPage)-Math.abs(y-q.refPage));
+    for(let i=0;i<rest.length&&i<240;i+=5)stages.push(rest.slice(i,i+5));
+  }
+  for(const st of stages){
+    const pgs=stage(st);if(!pgs.length)continue;
+    pgs.forEach(p=>tried.add(p));
+    const hit=await findRefIn(q,f,pdf,pgs,qBlob);
+    if(hit){
+      IMGS['ref_'+q.id]=hit.url;q.refImg=true;q.refPageShown=hit.page;
+      if(db){try{await db.doc('qimg/ref_'+q.id).set({d:hit.url})}catch(x){toast('자료 문제 이미지를 서버에 저장하지 못했습니다. 이 화면에서만 보입니다.')}}
+      return true;
+    }
+  }
+  return false;
 }
 async function cropRefs(e){
   if(!ui.api.images){log('▷ 이 화면에서는 이미지를 보낼 수 없어 자료 문제 이미지를 건너뜁니다.');return}
   const T=thr();e.questions.forEach(q=>{if(!q.refImg&&q.simBest!=null&&q.simBest>=T.t2)linkRef(q,e)});
-  const todo=e.questions.filter(q=>q.refFile&&q.refPage&&q.stem&&!q.refImg&&q.simBest!=null&&q.simBest>=T.t2);
+  const todo=e.questions.filter(q=>q.refFile&&q.refPage&&(q.stem||q.hasImg)&&!q.refImg&&q.simBest!=null&&q.simBest>=T.t2);
   if(!todo.length){log(`▷ 자료 문제 이미지를 만들 문항이 없습니다. (유사도 ${T.t2}% 이상이면서 자료의 쪽수를 아는 문항만 만듭니다)`);return}
   log(`▷ 자료 속 비슷한 문제 ${todo.length}개를 이미지로 자릅니다.`);
   /* 문항을 한 개씩이 아니라 4개씩 동시에 처리해 훨씬 빠릅니다. 요청이 몰려 거절되면 잠시 쉬었다가 다시 시도합니다. */
