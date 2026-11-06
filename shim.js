@@ -134,6 +134,24 @@
     }
   };
 
+  // Claude 답에 설명 문장(수식의 { 포함)이 앞에 붙어도, 그 안의 진짜 JSON 덩어리를 찾아냅니다.
+  function extractJson(t) {
+    t = String(t || '');
+    const ends = [];
+    for (let k = 0; k < t.length; k++) if (t[k] === '}' || t[k] === ']') ends.push(k);
+    let tries = 0;
+    for (let s = 0; s < t.length; s++) {
+      const c = t[s];
+      if (c !== '{' && c !== '[') continue;
+      for (let e = ends.length - 1; e >= 0 && ends[e] > s; e--) {
+        if (t[ends[e]] !== (c === '{' ? '}' : ']')) continue;
+        if (++tries > 4000) throw new Error('결과를 읽지 못했습니다. 다시 시도하세요.');
+        try { return JSON.parse(t.slice(s, ends[e] + 1)); } catch (_) {}
+      }
+    }
+    throw Object.assign(new Error('결과를 읽지 못했습니다. 다시 시도하세요.'), { code: 'invalid_json' });
+  }
+
   const sample = {
     async limits() { return { images: { maxCount: 6 } }; },
     async json(prompt, opts = {}) {
@@ -151,8 +169,7 @@
       const out = await r.json();
       if (!r.ok) throw Object.assign(new Error(out.error || '분석 실패'), { code: r.status });
       costAdd(out.usage);
-      const t = out.text, i = t.search(/[\[{]/), j = Math.max(t.lastIndexOf('}'), t.lastIndexOf(']'));
-      return JSON.parse(t.slice(i, j + 1));
+      return extractJson(out.text);
     }
   };
 
