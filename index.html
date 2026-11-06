@@ -1292,17 +1292,26 @@ async function cropRefs(e){
   const todo=e.questions.filter(q=>q.refFile&&q.refPage&&q.stem&&!q.refImg&&q.simBest!=null&&q.simBest>=T.t2);
   if(!todo.length){log(`▷ 자료 문제 이미지를 만들 문항이 없습니다. (유사도 ${T.t2}% 이상이면서 자료의 쪽수를 아는 문항만 만듭니다)`);return}
   log(`▷ 자료 속 비슷한 문제 ${todo.length}개를 이미지로 자릅니다.`);
-  let ok=0;const warned=new Set();
-  for(let i=0;i<todo.length;i++){
-    const q=todo[i];
-    try{
-      log(`  ${q.no}번과 비슷한 자료 문제 찾는 중 (${i+1}/${todo.length})`);
-      if(await makeRefImg(q)){ok++;if(q.cmp===undefined&&q.simBest>=T.t1)q.cmp=true}
-    }catch(x){
-      const m=errMsg(x);if(!warned.has(m)){warned.add(m);log('  '+m)}
-      if(x&&['not_granted','sampling_disabled','cancelled'].includes(x.code))break;
+  /* 문항을 한 개씩이 아니라 4개씩 동시에 처리해 훨씬 빠릅니다. 요청이 몰려 거절되면 잠시 쉬었다가 다시 시도합니다. */
+  let ok=0,done=0,idx=0,fatal=false;const warned=new Set();
+  const worker=async()=>{
+    while(!fatal&&!(ctl&&ctl.signal.aborted)){
+      const i=idx++;if(i>=todo.length)return;const q=todo[i];
+      for(let n=0;n<4;n++){
+        try{
+          if(await makeRefImg(q)){ok++;if(q.cmp===undefined&&q.simBest>=T.t1)q.cmp=true}
+          break;
+        }catch(x){
+          if(x&&(x.code===429||x.code==='rate_limited')&&n<3){await new Promise(r=>setTimeout(r,3000*(n+1)));continue}
+          const m=errMsg(x);if(!warned.has(m)){warned.add(m);log('  '+m)}
+          if(x&&['not_granted','sampling_disabled','cancelled'].includes(x.code))fatal=true;
+          break;
+        }
+      }
+      log(`  ${q.no}번 처리 끝 (${++done}/${todo.length})`);
     }
-  }
+  };
+  await Promise.all(Array.from({length:Math.min(4,todo.length)},worker));
   save();log(`✓ 자료 문제 이미지 ${ok}/${todo.length}개를 만들었습니다. [분석 리포트]의 자료 유사도 그래프에서 막대를 눌러 비교란에 넣을 문제를 고르세요.`);
 }
 /* 자료 유사도 막대: 올리면 두 문제를 나란히 보여 주고, 누르면 비교란에 넣을지 고르는 창을 엽니다 */
